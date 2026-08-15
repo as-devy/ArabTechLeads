@@ -1,0 +1,244 @@
+{
+  "metadata": {
+    "title": "ArabTechLeads — The Arab Technology Community",
+    "description": "A platform connecting developers and technology professionals across the Arab world."
+  },
+  "brand": {
+    "name": "ArabTechLeads",
+    "tagline": "Arab Technology Leaders Community",
+    "motto": "Connect. Share. Grow."
+  },
+  "nav": {
+    "home": "Home",
+    "explore": "Explore",
+    "developers": "Developers",
+    "communities": "Communities",
+    "login": "Sign in",
+    "join": "Join us",
+    "language": "Language"
+  },
+  "hero": {
+    "headline": "The Arab Tech Community",
+    "tagline": "Connect. Share. Grow.",
+    "description": "A platform bringing together developers and technology professionals from across the Arab world to share knowledge, discover talent, collaborate on projects, and build real professional relationships.",
+    "ctaPrimary": "Join the community",
+    "ctaSecondary": "Discover developers"
+  },
+  "why": {
+    "eyebrow": "Platform",
+    "title": "Everything you need to build your tech network",
+    "subtitle": "One place to share, discover, join communities, and collaborate with Arab tech talent.",
+    "share": {
+      "title": "Share knowledge",
+      "description": "Share your ideas, experience, and technical solutions with a community of specialists."
+    },
+    "discover": {
+      "title": "Discover developers",
+      "description": "Find developers and professionals who share your interests and technologies."
+    },
+    "communities": {
+      "title": "Tech communities",
+      "description": "Join technology communities that match your interests."
+    },
+    "collaborate": {
+      "title": "Collaborate",
+      "description": "Find the right people to collaborate and build projects with."
+    }
+  },
+  "discovery": {
+    "eyebrow": "Discover",
+    "title": "Meet people who share your passion for tech",
+    "subtitle": "Connect through shared skills and technical interests.",
+    "empty": "No matches for this skill yet."
+  },
+  "codeShare": {
+    "eyebrow": "Code",
+    "title": "Share code. Get real feedback.",
+    "subtitle": "Publish snippets, discuss solutions, and save what helps you grow.",
+    "question": "What's the best way to improve this code?",
+    "like": "Like",
+    "comment": "Comment",
+    "save": "Save",
+    "author": "Sara Ahmed",
+    "role": "Frontend Developer",
+    "lang": "TypeScript"
+  },
+  "communities": {
+    "eyebrow": "Communities",
+    "title": "Living tech communities",
+    "subtitle": "Join specialized spaces to discuss, learn, and collaborate.",
+    "members": "{count} members",
+    "items": {
+      "react": {
+        "name": "React Community",
+        "description": "Components, patterns, and React best practices."
+      },
+      "nextjs": {
+        "name": "Next.js Community",
+        "description": "App Router, Server Actions, and performance."
+      },
+      "backend": {
+        "name": "Backend Developers",
+        "description": "APIs, databases, and distributed systems."
+      },
+      "security": {
+        "name": "Cybersecurity",
+        "description": "App security, vulnerabilities, and network defense."
+      },
+      "ai": {
+        "name": "Artificial Intelligence",
+        "description": "Models, data, and practical AI applications."
+      },
+      "devops": {
+        "name": "DevOps & Cloud",
+        "description": "CI/CD, infrastructure, and the cloud."
+      },
+      "uiux": {
+        "name": "UI/UX",
+        "description": "Product design and digital experiences."
+      },
+      "opensource": {
+        "name": "Open Source",
+        "description": "Contributions, libraries, and open projects."
+      }
+    }
+  },
+  "network": {
+    "eyebrow": "Growth path",
+    "title": "Build a real technology network",
+    "subtitle": "From skill to professional relationship — a clear path to growth.",
+    "skills": "Skills",
+    "interests": "Interests",
+    "communities": "Communities",
+    "developers": "Developers",
+    "connections": "Connections"
+  },
+  "finalCta": {
+    "eyebrow": "Join",
+    "title": "Your tech future starts with strong relationships.",
+    "subtitle": "Create your profile and start building meaningful connections across the Arab tech network.",
+    "action": "Join ArabTechLeads"
+  },
+  "footer": {
+    "tagline": "Arab Technology Leaders Community",
+    "platform": "Platform",
+    "resources": "Resources",
+    "legal": "Legal",
+    "explore": "Explore",
+    "developers": "Developers",
+    "communities": "Communities",
+    "help": "Help",
+    "faq": "FAQ",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "social": "Connect",
+    "rights": "All rights reserved."
+  },
+  "common": {
+    "or": "or"
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "loginSubtitle": "Welcome back. Continue building your tech network and sharing knowledge with the community.",
+    "registerTitle": "Join the community",
+    "registerSubtitle": "Create your professional profile, discover developers who share your interests, and start collaborating.",
+    "forgotTitle": "Reset password",
+    "forgotSubtitle": "Enter your email and we’ll send a secure link to reset your password.",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "passwordHint": "At least 8 characters",
+    "loginSubmit": "Sign in",
+    "registerSubmit": "Create account",
+    "resetSubmit": "Send reset link",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don’t have an account?",
+    "createAccount": "Create account",
+    "hasAccount": "Already have an account?",
+    "backToLogin": "Back to sign in",
+    "loading": "Loading...",
+    "continueWithGoogle": "Continue with Google",
+    "orEmail": "or continue with email",
+    "checkEmail": "Check your email to confirm your account.",
+    "resetSent": "If an account exists, a reset link has been sent.",
+    "secureNote": "Your connection is encrypted. Your data stays under your control.",
+    "visualCaption": "Developers and technologies network",
+    "visual": {
+      "core": "Network",
+      "headline": "Where Arab developers connect",
+      "description": "An Arabic-first platform for sharing code, discovering talent, and building real professional relationships across the region.",
+      "stats": {
+        "developers": "Developers",
+        "skills": "Skills",
+        "communities": "Communities"
+      },
+      "highlights": {
+        "network": {
+          "title": "A real tech network",
+          "text": "Follow and connect with developers who share your stack."
+        },
+        "code": {
+          "title": "Clear code sharing",
+          "text": "Publish snippets, discuss solutions, and save what helps."
+        },
+        "communities": {
+          "title": "Specialized communities",
+          "text": "React, cybersecurity, AI, and more."
+        }
+      }
+    },
+    "errors": {
+      "VALIDATION_ERROR": "Check the fields and try again.",
+      "INVALID_CREDENTIALS": "Invalid email or password.",
+      "EMAIL_TAKEN": "This email is already registered.",
+      "PASSWORDS_DO_NOT_MATCH": "Passwords do not match.",
+      "RATE_LIMITED": "Too many attempts. Try again later.",
+      "OAUTH_ERROR": "Google sign-in failed. Please try again.",
+      "UNKNOWN_ERROR": "Something went wrong. Please try again."
+    }
+  },
+  "onboarding": {
+    "stepLabel": "Step {current} of {total}",
+    "steps": {
+      "basics": "Basic information",
+      "bio": "About you",
+      "role": "Specialty",
+      "skills": "Skills",
+      "interests": "Interests",
+      "country": "Country",
+      "finish": "Finish profile"
+    },
+    "fullName": "Full name",
+    "username": "Username",
+    "usernameHint": "Letters, numbers, and underscores only",
+    "avatarUrl": "Avatar URL",
+    "avatarHint": "Optional — image upload via Storage comes next",
+    "bio": "Bio",
+    "bioPlaceholder": "Tell the community about your experience and interests...",
+    "skillsHint": "Select the skills that represent your expertise.",
+    "interestsHint": "Select interests you want to explore.",
+    "countryHint": "Country is optional and not required to join.",
+    "countryOptional": "Prefer not to say",
+    "finishDescription": "Your profile is almost ready. Finish to enter the platform.",
+    "continue": "Continue",
+    "back": "Back",
+    "finish": "Get started",
+    "saving": "Saving...",
+    "errors": {
+      "VALIDATION_ERROR": "Check the fields and try again.",
+      "USERNAME_TAKEN": "Username is already taken.",
+      "SELECT_SKILLS": "Select at least one skill.",
+      "SELECT_INTERESTS": "Select at least one interest.",
+      "ONBOARDING_INCOMPLETE": "Complete all required steps first.",
+      "UNKNOWN_ERROR": "Something went wrong."
+    }
+  },
+  "app": {
+    "badge": "Platform",
+    "welcome": "Welcome, {name}",
+    "placeholder": "Authentication and database are ready. Sidebar and feed come in the next phase.",
+    "backHome": "Home",
+    "signOut": "Sign out",
+    "navHome": "Home"
+  }
+}

@@ -1,0 +1,319 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PostType {
+  TEXT
+  CODE
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum NotificationType {
+  FOLLOW
+  LIKE
+  COMMENT
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  COMMUNITY_ACTIVITY
+}
+
+model Role {
+  id        String    @id
+  nameAr    String    @map("name_ar")
+  nameEn    String    @map("name_en")
+  createdAt DateTime  @default(now()) @map("created_at")
+  profiles  Profile[]
+
+  @@map("roles")
+}
+
+model Country {
+  code      String    @id @db.Char(2)
+  nameAr    String    @map("name_ar")
+  nameEn    String    @map("name_en")
+  createdAt DateTime  @default(now()) @map("created_at")
+  profiles  Profile[]
+
+  @@map("countries")
+}
+
+model Profile {
+  id                   String    @id @db.Uuid
+  email                String    @unique
+  username             String?   @unique
+  fullName             String?   @map("full_name")
+  bio                  String?
+  avatarUrl            String?   @map("avatar_url")
+  coverUrl             String?   @map("cover_url")
+  roleId               String?   @map("role_id")
+  countryCode          String?   @map("country_code") @db.Char(2)
+  githubUrl            String?   @map("github_url")
+  linkedinUrl          String?   @map("linkedin_url")
+  portfolioUrl         String?   @map("portfolio_url")
+  locale               String    @default("ar")
+  theme                String    @default("dark")
+  onboardingCompleted  Boolean   @default(false) @map("onboarding_completed")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  role                 Role?     @relation(fields: [roleId], references: [id])
+  country              Country?  @relation(fields: [countryCode], references: [code])
+  skills               ProfileSkill[]
+  interests            ProfileInterest[]
+  posts                Post[]
+  comments             Comment[]
+  likes                PostLike[]
+  savedPosts           SavedPost[]
+  followers            Follow[]  @relation("Following")
+  following            Follow[]  @relation("Follower")
+  sentConnections      Connection[] @relation("ConnectionRequester")
+  receivedConnections  Connection[] @relation("ConnectionReceiver")
+  communityMemberships CommunityMember[]
+  notifications        Notification[] @relation("NotificationRecipient")
+  actorNotifications   Notification[] @relation("NotificationActor")
+
+  @@index([username])
+  @@index([roleId])
+  @@index([countryCode])
+  @@map("profiles")
+}
+
+model Skill {
+  id        String         @id @default(uuid()) @db.Uuid
+  slug      String         @unique
+  name      String
+  createdAt DateTime       @default(now()) @map("created_at")
+  profiles  ProfileSkill[]
+
+  @@map("skills")
+}
+
+model ProfileSkill {
+  profileId String   @map("profile_id") @db.Uuid
+  skillId   String   @map("skill_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, skillId])
+  @@index([skillId])
+  @@map("profile_skills")
+}
+
+model Interest {
+  id        String            @id @default(uuid()) @db.Uuid
+  slug      String            @unique
+  nameAr    String            @map("name_ar")
+  nameEn    String            @map("name_en")
+  createdAt DateTime          @default(now()) @map("created_at")
+  profiles  ProfileInterest[]
+
+  @@map("interests")
+}
+
+model ProfileInterest {
+  profileId  String   @map("profile_id") @db.Uuid
+  interestId String   @map("interest_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  profile  Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  interest Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, interestId])
+  @@index([interestId])
+  @@map("profile_interests")
+}
+
+model Post {
+  id          String   @id @default(uuid()) @db.Uuid
+  authorId    String   @map("author_id") @db.Uuid
+  type        PostType @default(TEXT)
+  content     String
+  code        String?
+  language    String?
+  communityId String?  @map("community_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  author      Profile         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  community   Community?      @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  tags        PostTag[]
+  comments    Comment[]
+  likes       PostLike[]
+  savedBy     SavedPost[]
+  communityPosts CommunityPost[]
+  notifications Notification[]
+
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([communityId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+model Tag {
+  id        String    @id @default(uuid()) @db.Uuid
+  slug      String    @unique
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  posts     PostTag[]
+
+  @@map("tags")
+}
+
+model PostTag {
+  postId    String   @map("post_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+  @@map("post_tags")
+}
+
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  post   Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author Profile @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([authorId])
+  @@map("comments")
+}
+
+model PostLike {
+  postId    String   @map("post_id") @db.Uuid
+  profileId String   @map("profile_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([postId, profileId])
+  @@index([profileId])
+  @@map("post_likes")
+}
+
+model SavedPost {
+  postId    String   @map("post_id") @db.Uuid
+  profileId String   @map("profile_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([postId, profileId])
+  @@index([profileId, createdAt(sort: Desc)])
+  @@map("saved_posts")
+}
+
+model Follow {
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  Profile @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following Profile @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model Connection {
+  id          String           @id @default(uuid()) @db.Uuid
+  requesterId String           @map("requester_id") @db.Uuid
+  receiverId  String           @map("receiver_id") @db.Uuid
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  requester Profile @relation("ConnectionRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver  Profile @relation("ConnectionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, receiverId])
+  @@index([receiverId, status])
+  @@map("connections")
+}
+
+model Community {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  nameAr      String   @map("name_ar")
+  nameEn      String   @map("name_en")
+  description String?
+  icon        String?
+  isFeatured  Boolean  @default(false) @map("is_featured")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members CommunityMember[]
+  posts   Post[]
+  communityPosts CommunityPost[]
+
+  @@map("communities")
+}
+
+model CommunityMember {
+  communityId String   @map("community_id") @db.Uuid
+  profileId   String   @map("profile_id") @db.Uuid
+  role        String   @default("member")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([communityId, profileId])
+  @@index([profileId])
+  @@map("community_members")
+}
+
+model CommunityPost {
+  communityId String   @map("community_id") @db.Uuid
+  postId      String   @map("post_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([communityId, postId])
+  @@index([postId])
+  @@map("community_posts")
+}
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  recipientId String           @map("recipient_id") @db.Uuid
+  actorId     String?          @map("actor_id") @db.Uuid
+  type        NotificationType
+  postId      String?          @map("post_id") @db.Uuid
+  message     String?
+  isRead      Boolean          @default(false) @map("is_read")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  recipient Profile @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     Profile? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId, isRead, createdAt(sort: Desc)])
+  @@map("notifications")
+}
