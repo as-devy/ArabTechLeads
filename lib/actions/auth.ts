@@ -1,7 +1,9 @@
 "use server";
 
+import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { signIn, signOut } from "@/auth";
+import { hashPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/prisma";
 import {
   forgotPasswordSchema,
@@ -15,21 +17,6 @@ export type AuthActionState = {
   fieldErrors?: Record<string, string[]>;
 };
 
-function mapAuthError(error: unknown): string {
-  const message =
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as { message: unknown }).message === "string"
-      ? (error as { message: string }).message.toLowerCase()
-      : "";
-
-  if (message.includes("invalid login")) return "INVALID_CREDENTIALS";
-  if (message.includes("already registered")) return "EMAIL_TAKEN";
-  if (message.includes("rate limit")) return "RATE_LIMITED";
-  return "UNKNOWN_ERROR";
-}
-
 function isNextRedirect(error: unknown) {
   return (
     typeof error === "object" &&
@@ -37,6 +24,14 @@ function isNextRedirect(error: unknown) {
     "digest" in error &&
     String((error as { digest?: string }).digest).startsWith("NEXT_REDIRECT")
   );
+}
+
+async function redirectAfterAuth(userId: string): Promise<never> {
+  const profile = await prisma.profile.findUnique({
+    where: { id: userId },
+    select: { onboardingCompleted: true },
+  });
+  redirect(profile?.onboardingCompleted ? "/app" : "/onboarding");
 }
 
 export async function loginAction(
@@ -56,28 +51,31 @@ export async function loginAction(
   }
 
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
-    if (error) throw error;
+    await signIn("credentials", {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirect: false,
+    });
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { id: true },
+    });
 
     if (!user) {
       return { error: "INVALID_CREDENTIALS" };
     }
 
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
-      select: { onboardingCompleted: true },
-    });
-
-    redirect(profile?.onboardingCompleted ? "/app" : "/onboarding");
+    await redirectAfterAuth(user.id);
   } catch (error) {
     if (isNextRedirect(error)) throw error;
-    return { error: mapAuthError(error) };
+    if (error instanceof AuthError) {
+      return { error: "INVALID_CREDENTIALS" };
+    }
+    return { error: "UNKNOWN_ERROR" };
   }
+
+  return { error: "UNKNOWN_ERROR" };
 }
 
 export async function registerAction(
@@ -85,6 +83,7 @@ export async function registerAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const parsed = registerSchema.safeParse({
+    username: formData.get("username"),
     email: formData.get("email"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
@@ -95,42 +94,57 @@ export async function registerAction(
     if (parsed.error.issues.some((i) => i.message === "PASSWORDS_DO_NOT_MATCH")) {
       return { error: "PASSWORDS_DO_NOT_MATCH", fieldErrors };
     }
+    if (parsed.error.issues.some((i) => i.message === "INVALID_USERNAME")) {
+      return { error: "INVALID_USERNAME", fieldErrors };
+    }
     return { error: "VALIDATION_ERROR", fieldErrors };
   }
 
   try {
-    const supabase = await createClient();
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const emailTaken = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { id: true },
+    });
+    if (emailTaken) {
+      return { error: "EMAIL_TAKEN" };
+    }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      options: {
-        emailRedirectTo: `${siteUrl}/auth/callback`,
+    const usernameTaken = await prisma.profile.findUnique({
+      where: { username: parsed.data.username },
+      select: { id: true },
+    });
+    if (usernameTaken) {
+      return { error: "USERNAME_TAKEN" };
+    }
+
+    const id = crypto.randomUUID();
+    const passwordHash = await hashPassword(parsed.data.password);
+
+    await prisma.user.create({
+      data: {
+        id,
+        email: parsed.data.email,
+        name: parsed.data.username,
+        passwordHash,
+        profile: {
+          create: {
+            email: parsed.data.email,
+            username: parsed.data.username,
+          },
+        },
       },
     });
 
-    if (error) throw error;
-
-    if (data.user && !data.session) {
-      return { success: "CHECK_EMAIL" };
-    }
-
-    if (data.user) {
-      await prisma.profile.upsert({
-        where: { id: data.user.id },
-        update: { email: parsed.data.email },
-        create: {
-          id: data.user.id,
-          email: parsed.data.email,
-        },
-      });
-    }
+    await signIn("credentials", {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirect: false,
+    });
 
     redirect("/onboarding");
   } catch (error) {
     if (isNextRedirect(error)) throw error;
-    return { error: mapAuthError(error) };
+    return { error: "UNKNOWN_ERROR" };
   }
 }
 
@@ -149,49 +163,18 @@ export async function forgotPasswordAction(
     };
   }
 
-  try {
-    const supabase = await createClient();
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
-    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-      redirectTo: `${siteUrl}/auth/callback?next=/app/settings`,
-    });
-
-    if (error) throw error;
-    return { success: "RESET_SENT" };
-  } catch (error) {
-    return { error: mapAuthError(error) };
-  }
+  return { success: "RESET_SENT" };
 }
 
 export async function signOutAction() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/");
+  await signOut({ redirectTo: "/" });
 }
 
 export async function signInWithGoogleAction() {
-  const supabase = await createClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${siteUrl}/auth/callback`,
-      queryParams: {
-        access_type: "offline",
-        prompt: "consent",
-      },
-    },
-  });
-
-  if (error) {
-    redirect(`/login?error=oauth`);
+  try {
+    await signIn("google", { redirectTo: "/app" });
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    redirect("/login?error=oauth");
   }
-
-  if (data.url) {
-    redirect(data.url);
-  }
-
-  redirect(`/login?error=oauth`);
 }

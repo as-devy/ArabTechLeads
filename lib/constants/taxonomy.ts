@@ -20,24 +20,99 @@ export const ROLES = [
 export const SKILLS = [
   "JavaScript",
   "TypeScript",
-  "React",
-  "Next.js",
-  "Node.js",
   "Python",
   "Java",
   "C#",
   "Go",
   "Rust",
   "PHP",
+  "Ruby",
+  "Kotlin",
+  "Swift",
+  "C++",
+  "React",
+  "Next.js",
+  "Vue",
+  "Angular",
+  "Svelte",
   "Flutter",
-  "Laravel",
+  "React Native",
+  "Node.js",
   "Django",
+  "Laravel",
+  "Spring",
+  "Express",
+  "NestJS",
+  "FastAPI",
   "PostgreSQL",
   "MongoDB",
-  "Docker",
-  "AWS",
+  "MySQL",
+  "Redis",
   "Supabase",
+  "Firebase",
+  "Prisma",
+  "Docker",
+  "Kubernetes",
+  "AWS",
+  "Azure",
+  "GCP",
+  "Linux",
+  "Git",
+  "GraphQL",
+  "Tailwind CSS",
+  "Figma",
 ] as const;
+
+export const SKILL_CATEGORY_ORDER = [
+  "languages",
+  "frontend",
+  "backend",
+  "database",
+  "devops",
+  "other",
+] as const;
+
+export type SkillCategoryId = (typeof SKILL_CATEGORY_ORDER)[number];
+
+export const SKILL_CATEGORIES: Record<
+  Exclude<SkillCategoryId, "other">,
+  readonly string[]
+> = {
+  languages: [
+    "JavaScript",
+    "TypeScript",
+    "Python",
+    "Java",
+    "C#",
+    "Go",
+    "Rust",
+    "PHP",
+  ],
+  frontend: ["React", "Next.js", "Flutter"],
+  backend: ["Node.js", "Django", "Laravel"],
+  database: ["PostgreSQL", "MongoDB", "Supabase"],
+  devops: ["Docker", "AWS"],
+};
+
+export const POPULAR_SKILL_NAMES = [
+  "JavaScript",
+  "TypeScript",
+  "React",
+  "Next.js",
+  "Node.js",
+  "Python",
+] as const;
+
+export function getSkillCategory(name: string): SkillCategoryId {
+  const normalized = name.trim();
+  for (const id of SKILL_CATEGORY_ORDER) {
+    if (id === "other") continue;
+    if (SKILL_CATEGORIES[id].some((item) => item.toLowerCase() === normalized.toLowerCase())) {
+      return id;
+    }
+  }
+  return "other";
+}
 
 export const INTERESTS = [
   { slug: "ai", nameAr: "الذكاء الاصطناعي", nameEn: "Artificial Intelligence" },

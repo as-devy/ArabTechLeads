@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { getSessionUser } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
 import { ARAB_COUNTRIES, ROLES } from "@/lib/constants/taxonomy";
+import { ensureOnboardingOptions } from "@/lib/onboarding/ensure-options";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,15 @@ export default async function OnboardingPage({ params }: Props) {
     include: {
       skills: true,
       interests: true,
+      roles: true,
     },
   });
 
   if (profile?.onboardingCompleted) {
     redirect("/app");
   }
+
+  await ensureOnboardingOptions();
 
   const [dbRoles, dbSkills, dbInterests, dbCountries] = await Promise.all([
     prisma.role.findMany({ orderBy: { nameEn: "asc" } }),
@@ -78,6 +82,7 @@ export default async function OnboardingPage({ params }: Props) {
           avatarUrl: profile?.avatarUrl,
           bio: profile?.bio,
           roleId: profile?.roleId,
+          roleIds: profile?.roles.map((r) => r.roleId) ?? (profile?.roleId ? [profile.roleId] : []),
           countryCode: profile?.countryCode,
           skillIds: profile?.skills.map((s) => s.skillId) ?? [],
           interestIds: profile?.interests.map((i) => i.interestId) ?? [],

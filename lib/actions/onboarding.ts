@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
+import { ROLES } from "@/lib/constants/taxonomy";
 import { prisma } from "@/lib/prisma";
 import {
   onboardingBasicsSchema,
@@ -31,9 +32,15 @@ export async function saveOnboardingBasics(
   });
 
   if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    const firstCode =
+      fieldErrors.username?.[0] ??
+      fieldErrors.fullName?.[0] ??
+      fieldErrors.avatarUrl?.[0] ??
+      "VALIDATION_ERROR";
     return {
-      error: "VALIDATION_ERROR",
-      fieldErrors: parsed.error.flatten().fieldErrors,
+      error: firstCode,
+      fieldErrors,
     };
   }
 
@@ -47,7 +54,10 @@ export async function saveOnboardingBasics(
   });
 
   if (existing) {
-    return { error: "USERNAME_TAKEN" };
+    return {
+      error: "USERNAME_TAKEN",
+      fieldErrors: { username: ["USERNAME_TAKEN"] },
+    };
   }
 
   await prisma.profile.upsert({
@@ -100,17 +110,45 @@ export async function saveOnboardingRole(
 ): Promise<OnboardingActionState> {
   const user = await requireUser();
   const parsed = onboardingRoleSchema.safeParse({
-    roleId: formData.get("roleId"),
+    roleIds: formData.getAll("roleIds"),
   });
 
   if (!parsed.success) {
-    return { error: "VALIDATION_ERROR" };
+    return { error: "SELECT_ROLES" };
   }
 
-  await prisma.profile.update({
-    where: { id: user.id },
-    data: { roleId: parsed.data.roleId },
-  });
+  const knownRoles = ROLES.filter((role) => parsed.data.roleIds.includes(role.id));
+  if (knownRoles.length === 0) {
+    return { error: "SELECT_ROLES" };
+  }
+
+  const roleIds = knownRoles.map((role) => role.id);
+
+  await prisma.$transaction([
+    ...knownRoles.map((role) =>
+      prisma.role.upsert({
+        where: { id: role.id },
+        update: { nameAr: role.nameAr, nameEn: role.nameEn },
+        create: {
+          id: role.id,
+          nameAr: role.nameAr,
+          nameEn: role.nameEn,
+        },
+      }),
+    ),
+    prisma.profileRole.deleteMany({ where: { profileId: user.id } }),
+    prisma.profileRole.createMany({
+      data: roleIds.map((roleId) => ({
+        profileId: user.id,
+        roleId,
+      })),
+      skipDuplicates: true,
+    }),
+    prisma.profile.update({
+      where: { id: user.id },
+      data: { roleId: roleIds[0] },
+    }),
+  ]);
 
   return { success: true };
 }
@@ -198,13 +236,14 @@ export async function completeOnboardingAction(): Promise<OnboardingActionState>
     include: {
       skills: true,
       interests: true,
+      roles: true,
     },
   });
 
   if (
     !profile?.fullName ||
     !profile.username ||
-    !profile.roleId ||
+    (profile.roles.length === 0 && !profile.roleId) ||
     profile.skills.length === 0 ||
     profile.interests.length === 0
   ) {

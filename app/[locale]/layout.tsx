@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Arabic, JetBrains_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -66,24 +67,19 @@ export default async function LocaleLayout({ children, params }: Props) {
   setRequestLocale(locale);
   const messages = await getMessages();
   const dir = locale === "ar" ? "rtl" : "ltr";
+  const themeCookie = (await cookies()).get("atl-theme")?.value;
+  const theme = themeCookie === "light" ? "light" : "dark";
 
   return (
     <html
       lang={locale}
       dir={dir}
-      className={`${arabic.variable} ${mono.variable} dark h-full antialiased`}
+      className={`${arabic.variable} ${mono.variable} ${theme} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("atl-theme");if(t==="light"){document.documentElement.classList.remove("dark");document.documentElement.classList.add("light");}else{document.documentElement.classList.add("dark");document.documentElement.classList.remove("light");}}catch(e){}})();`,
-          }}
-        />
-      </head>
       <body className="min-h-full bg-background font-sans text-foreground">
         <NextIntlClientProvider messages={messages}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider initialTheme={theme}>{children}</ThemeProvider>
         </NextIntlClientProvider>
       </body>
     </html>

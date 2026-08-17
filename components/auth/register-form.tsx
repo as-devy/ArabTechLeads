@@ -50,7 +50,7 @@ export function RegisterForm() {
             autoComplete="username"
             required
             label={t("username")}
-            placeholder="John Doe"
+            placeholder="omar_dev"
             dir="ltr"
             className="text-start"
           />

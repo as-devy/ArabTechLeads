@@ -4,12 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
 
-type Theme = "dark" | "light";
+export type Theme = "dark" | "light";
 
 type ThemeContextValue = {
   theme: Theme;
@@ -18,7 +19,7 @@ type ThemeContextValue = {
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
-const STORAGE_KEY = "atl-theme";
+export const THEME_KEY = "atl-theme";
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -30,13 +31,15 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function getThemeSnapshot(): Theme {
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  return stored === "light" ? "light" : "dark";
+function persistTheme(theme: Theme) {
+  window.localStorage.setItem(THEME_KEY, theme);
+  document.cookie = `${THEME_KEY}=${theme}; path=/; max-age=31536000; samesite=lax`;
 }
 
-function getServerSnapshot(): Theme {
-  return "dark";
+function readStoredTheme(fallback: Theme): Theme {
+  const stored = window.localStorage.getItem(THEME_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return fallback;
 }
 
 function applyTheme(theme: Theme) {
@@ -44,15 +47,26 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("light", theme === "light");
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export function ThemeProvider({
+  children,
+  initialTheme,
+}: {
+  children: ReactNode;
+  initialTheme: Theme;
+}) {
   const theme = useSyncExternalStore(
     subscribe,
-    getThemeSnapshot,
-    getServerSnapshot,
+    () => readStoredTheme(initialTheme),
+    () => initialTheme,
   );
 
+  useLayoutEffect(() => {
+    persistTheme(theme);
+    applyTheme(theme);
+  }, [theme]);
+
   const setTheme = useCallback((next: Theme) => {
-    window.localStorage.setItem(STORAGE_KEY, next);
+    persistTheme(next);
     applyTheme(next);
     emit();
   }, []);

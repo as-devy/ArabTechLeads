@@ -1,0 +1,52 @@
+"use client";
+
+import { Bell, MessageCircle, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Avatar } from "@/components/ui/avatar";
+import { Link } from "@/i18n/navigation";
+
+export function AppHeader({
+  name,
+  avatarUrl,
+  unreadNotifications = 0,
+}: {
+  name?: string | null;
+  avatarUrl?: string | null;
+  unreadNotifications?: number;
+}) {
+  const t = useTranslations("app");
+
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/80 bg-background/90 px-4 backdrop-blur-md lg:px-6">
+      <form action="/app/search" className="relative min-w-0 flex-1">
+        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+        <input
+          type="search"
+          name="q"
+          placeholder={t("searchPlaceholder")}
+          className="h-10 w-full rounded-lg border border-border bg-surface-elevated ps-10 pe-3 text-sm outline-none placeholder:text-muted focus:border-accent"
+        />
+      </form>
+      <Link
+        href="/app/notifications"
+        className="relative rounded-lg p-2 text-secondary hover:bg-accent-muted hover:text-foreground"
+        aria-label={t("nav.notifications")}
+      >
+        <Bell className="size-5" strokeWidth={1.7} />
+        {unreadNotifications > 0 ? (
+          <span className="absolute end-1 top-1 size-2 rounded-full bg-accent" />
+        ) : null}
+      </Link>
+      <Link
+        href="/app/messages"
+        className="rounded-lg p-2 text-secondary hover:bg-accent-muted hover:text-foreground"
+        aria-label={t("nav.messages")}
+      >
+        <MessageCircle className="size-5" strokeWidth={1.7} />
+      </Link>
+      <Link href="/app/settings" className="hidden sm:block">
+        <Avatar name={name} src={avatarUrl} size="sm" />
+      </Link>
+    </header>
+  );
+}

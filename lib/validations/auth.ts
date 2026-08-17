@@ -1,13 +1,22 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email().toLowerCase(),
   password: z.string().min(8).max(72),
 });
 
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, "USERNAME_TOO_SHORT")
+  .max(24, "USERNAME_TOO_LONG")
+  .regex(/^[a-zA-Z0-9_]+$/, "INVALID_USERNAME")
+  .transform((value) => value.toLowerCase());
+
 export const registerSchema = z
   .object({
-    email: z.string().email(),
+    username: usernameSchema,
+    email: z.string().trim().email().toLowerCase(),
     password: z.string().min(8).max(72),
     confirmPassword: z.string().min(8).max(72),
   })
@@ -17,18 +26,19 @@ export const registerSchema = z
   });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email().toLowerCase(),
 });
 
 export const onboardingBasicsSchema = z.object({
-  fullName: z.string().trim().min(2).max(80),
-  username: z
+  fullName: z
     .string()
     .trim()
-    .min(3)
-    .max(24)
-    .regex(/^[a-zA-Z0-9_]+$/, "INVALID_USERNAME"),
-  avatarUrl: z.string().url().optional().or(z.literal("")),
+    .min(2, "FULL_NAME_TOO_SHORT")
+    .max(80, "FULL_NAME_TOO_LONG"),
+  username: usernameSchema,
+  avatarUrl: z
+    .union([z.literal(""), z.string().trim().url("INVALID_AVATAR_URL")])
+    .optional(),
 });
 
 export const onboardingBioSchema = z.object({
@@ -36,7 +46,7 @@ export const onboardingBioSchema = z.object({
 });
 
 export const onboardingRoleSchema = z.object({
-  roleId: z.string().min(1),
+  roleIds: z.array(z.string().min(1)).min(1, "SELECT_ROLES").max(8),
 });
 
 export const onboardingSkillsSchema = z.object({
@@ -48,9 +58,5 @@ export const onboardingInterestsSchema = z.object({
 });
 
 export const onboardingCountrySchema = z.object({
-  countryCode: z
-    .string()
-    .length(2)
-    .optional()
-    .or(z.literal("")),
+  countryCode: z.string().length(2).optional().or(z.literal("")),
 });

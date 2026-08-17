@@ -1,9 +1,11 @@
-import createMiddleware from "next-intl/middleware";
+import NextAuth from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
+import createMiddleware from "next-intl/middleware";
+import { authConfig } from "./auth.config";
 import { routing } from "./i18n/routing";
-import { updateSession } from "./lib/supabase/middleware";
 
 const handleI18n = createMiddleware(routing);
+const { auth } = NextAuth(authConfig);
 
 function stripLocale(pathname: string) {
   for (const locale of routing.locales) {
@@ -15,33 +17,55 @@ function stripLocale(pathname: string) {
   return pathname;
 }
 
-export default async function proxy(request: NextRequest) {
-  const i18nResponse = handleI18n(request);
-  const { response, user } = await updateSession(request, i18nResponse);
+function localePrefix(pathname: string) {
+  for (const locale of routing.locales) {
+    if (locale === routing.defaultLocale) continue;
+    if (pathname === `/${locale}` || pathname.startsWith(`/${locale}/`)) {
+      return `/${locale}`;
+    }
+  }
+  return "";
+}
 
-  const pathname = stripLocale(request.nextUrl.pathname);
+function localizedPath(requestPath: string, target: string) {
+  return `${localePrefix(requestPath)}${target}` || target;
+}
+
+export default auth(async (request) => {
+  const i18nResponse = handleI18n(request as NextRequest);
+  const user = request.auth?.user;
+  const rawPath = request.nextUrl.pathname;
+  const pathname = stripLocale(rawPath);
   const isAuthRoute =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password");
   const isProtected =
-    pathname.startsWith("/app") || pathname.startsWith("/onboarding");
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/admin");
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = localizedPath(rawPath, "/login");
     return NextResponse.redirect(url);
   }
 
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = "/app";
+    url.pathname = localizedPath(rawPath, "/app");
     return NextResponse.redirect(url);
   }
 
-  return response;
-}
+  if (user && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = localizedPath(rawPath, "/app");
+    return NextResponse.redirect(url);
+  }
+
+  return i18nResponse;
+});
 
 export const config = {
-  matcher: ["/((?!api|trpc|_next|_vercel|auth/callback|.*\\..*).*)"],
+  matcher: ["/((?!api|trpc|_next|_vercel|.*\\..*).*)"],
 };

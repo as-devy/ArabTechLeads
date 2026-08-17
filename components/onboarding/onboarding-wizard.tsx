@@ -10,7 +10,9 @@ import {
   saveOnboardingInterests,
   saveOnboardingRole,
   saveOnboardingSkills,
+  type OnboardingActionState,
 } from "@/lib/actions/onboarding";
+import { SkillsSelector } from "@/components/onboarding/skills-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +37,7 @@ type Props = {
     countryCode?: string | null;
     skillIds?: string[];
     interestIds?: string[];
+    roleIds?: string[];
   };
 };
 
@@ -49,8 +52,16 @@ export function OnboardingWizard({
   const locale = useLocale();
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [selectedSkills, setSelectedSkills] = useState<string[]>(
     initial?.skillIds ?? [],
+  );
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(
+    initial?.roleIds?.length
+      ? initial.roleIds
+      : initial?.roleId
+        ? [initial.roleId]
+        : [],
   );
   const [selectedInterests, setSelectedInterests] = useState<string[]>(
     initial?.interestIds ?? [],
@@ -79,21 +90,34 @@ export function OnboardingWizard({
     }
   }
 
+  function fieldError(name: string) {
+    const code = fieldErrors[name]?.[0];
+    return code ? errorMessage(code) ?? undefined : undefined;
+  }
+
   function runStep(
-    action: () => Promise<{ error?: string; success?: boolean }>,
+    action: () => Promise<OnboardingActionState>,
     nextStep: number,
   ) {
     setError(null);
+    setFieldErrors({});
     startTransition(async () => {
       const result = await action();
       if (result.error) {
         setError(result.error);
+        setFieldErrors(result.fieldErrors ?? {});
         return;
       }
       if (result.success) {
         setStep(nextStep);
       }
     });
+  }
+
+  function toggleRole(id: string) {
+    setSelectedRoles((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   function toggleSkill(id: string) {
@@ -144,6 +168,7 @@ export function OnboardingWizard({
             required
             label={t("fullName")}
             defaultValue={initial?.fullName ?? ""}
+            error={fieldError("fullName")}
           />
           <Input
             name="username"
@@ -153,6 +178,7 @@ export function OnboardingWizard({
             dir="ltr"
             className="text-start"
             hint={t("usernameHint")}
+            error={fieldError("username")}
           />
           <Input
             name="avatarUrl"
@@ -162,8 +188,9 @@ export function OnboardingWizard({
             dir="ltr"
             className="text-start"
             hint={t("avatarHint")}
+            error={fieldError("avatarUrl")}
           />
-          {error ? (
+          {error && !fieldError("username") && !fieldError("fullName") && !fieldError("avatarUrl") ? (
             <p className="text-sm text-error" role="alert">
               {errorMessage(error)}
             </p>
@@ -208,29 +235,46 @@ export function OnboardingWizard({
           className="space-y-4 rounded-lg border border-border bg-surface-elevated p-5 sm:p-6"
           onSubmit={(event) => {
             event.preventDefault();
-            const formData = new FormData(event.currentTarget);
+            const formData = new FormData();
+            selectedRoles.forEach((id) => formData.append("roleIds", id));
             runStep(() => saveOnboardingRole({}, formData), 3);
           }}
         >
+          <p className="text-sm text-secondary">{t("rolesHint")}</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            {roles.map((role) => (
-              <label
-                key={role.id}
-                className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-3 has-[:checked]:border-accent/50 has-[:checked]:bg-accent-muted"
-              >
-                <input
-                  type="radio"
-                  name="roleId"
-                  value={role.id}
-                  defaultChecked={initial?.roleId === role.id}
-                  required
-                  className="accent-[var(--accent)]"
-                />
-                <span className="text-sm text-foreground">
-                  {locale === "ar" ? role.nameAr : role.nameEn}
-                </span>
-              </label>
-            ))}
+            {roles.map((role) => {
+              const active = selectedRoles.includes(role.id);
+              return (
+                <button
+                  key={role.id}
+                  type="button"
+                  onClick={() => toggleRole(role.id)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border px-3 py-3 text-start transition-colors",
+                    active
+                      ? "border-accent/50 bg-accent-muted text-foreground"
+                      : "border-border text-secondary hover:text-foreground",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "inline-flex size-4 shrink-0 items-center justify-center rounded-sm border",
+                      active
+                        ? "border-accent bg-accent text-accent-foreground"
+                        : "border-border",
+                    )}
+                    aria-hidden
+                  >
+                    {active ? (
+                      <span className="block size-2 rounded-[1px] bg-accent-foreground" />
+                    ) : null}
+                  </span>
+                  <span className="dir-ltr text-sm" dir="ltr">
+                    {role.nameEn}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           {error ? (
             <p className="text-sm text-error">{errorMessage(error)}</p>
@@ -239,7 +283,11 @@ export function OnboardingWizard({
             <Button type="button" variant="secondary" onClick={() => setStep(1)}>
               {t("back")}
             </Button>
-            <Button type="submit" disabled={pending} className="flex-1">
+            <Button
+              type="submit"
+              disabled={pending || selectedRoles.length === 0}
+              className="flex-1"
+            >
               {pending ? t("saving") : t("continue")}
             </Button>
           </div>
@@ -256,27 +304,11 @@ export function OnboardingWizard({
             runStep(() => saveOnboardingSkills({}, formData), 4);
           }}
         >
-          <p className="text-sm text-secondary">{t("skillsHint")}</p>
-          <div className="flex flex-wrap gap-2">
-            {skills.map((skill) => {
-              const active = selectedSkills.includes(skill.id);
-              return (
-                <button
-                  key={skill.id}
-                  type="button"
-                  onClick={() => toggleSkill(skill.id)}
-                  className={cn(
-                    "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                    active
-                      ? "border-accent/50 bg-accent-muted text-foreground"
-                      : "border-border text-secondary hover:text-foreground",
-                  )}
-                >
-                  <span className="dir-ltr inline-block">{skill.name}</span>
-                </button>
-              );
-            })}
-          </div>
+          <SkillsSelector
+            skills={skills}
+            selectedIds={selectedSkills}
+            onToggle={toggleSkill}
+          />
           {error ? (
             <p className="text-sm text-error">{errorMessage(error)}</p>
           ) : null}
