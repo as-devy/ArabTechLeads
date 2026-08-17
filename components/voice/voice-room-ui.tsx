@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -468,7 +468,36 @@ function ParticipantTile({
   const t = useTranslations("app.voice");
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
+  const menuRef = useRef<HTMLDivElement>(null);
   const verified = Boolean(member.profile.githubUrl || member.profile.isAdmin);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const close = () => setOpen(false);
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && menuRef.current?.contains(target)) return;
+      close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const run = (action: () => Promise<unknown>) => {
+    setOpen(false);
+    start(() => {
+      void action();
+    });
+  };
 
   return (
     <li
@@ -491,44 +520,58 @@ function ParticipantTile({
         {speaking ? t("speaking") : micMuted || member.forceMuted ? t("muted") : t("micOn")}
       </p>
       {canModerate && !isSelf ? (
-        <div className="relative mt-2">
-          <Button type="button" size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+        <div className="relative mt-2" ref={menuRef}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-expanded={open}
+            aria-haspopup="menu"
+            onClick={() => setOpen((v) => !v)}
+          >
             {t("moderate")}
           </Button>
           {open ? (
-            <div className="absolute z-10 mt-1 w-40 rounded-lg border border-border bg-surface p-1 text-start shadow-md">
+            <div
+              role="menu"
+              className="absolute z-10 mt-1 w-40 rounded-lg border border-border bg-surface p-1 text-start shadow-md"
+            >
               {(["SPEAKER", "LISTENER", "MODERATOR"] as VoiceRole[]).map((role) => (
                 <button
                   key={role}
                   type="button"
+                  role="menuitem"
                   disabled={pending}
                   className="block w-full rounded-md px-2 py-1.5 text-xs hover:bg-accent-muted"
-                  onClick={() => start(() => void setVoiceRoleAction(roomId, member.profileId, role))}
+                  onClick={() => run(() => setVoiceRoleAction(roomId, member.profileId, role))}
                 >
                   {t(`make.${role}`)}
                 </button>
               ))}
               <button
                 type="button"
+                role="menuitem"
                 disabled={pending}
                 className="block w-full rounded-md px-2 py-1.5 text-xs hover:bg-accent-muted"
-                onClick={() => start(() => void muteParticipantAction(roomId, member.profileId, true))}
+                onClick={() => run(() => muteParticipantAction(roomId, member.profileId, true))}
               >
                 {t("mute")}
               </button>
               <button
                 type="button"
+                role="menuitem"
                 disabled={pending}
                 className="block w-full rounded-md px-2 py-1.5 text-xs hover:bg-accent-muted"
-                onClick={() => start(() => void removeParticipantAction(roomId, member.profileId, false))}
+                onClick={() => run(() => removeParticipantAction(roomId, member.profileId, false))}
               >
                 {t("remove")}
               </button>
               <button
                 type="button"
+                role="menuitem"
                 disabled={pending}
                 className="block w-full rounded-md px-2 py-1.5 text-xs text-error hover:bg-accent-muted"
-                onClick={() => start(() => void removeParticipantAction(roomId, member.profileId, true))}
+                onClick={() => run(() => removeParticipantAction(roomId, member.profileId, true))}
               >
                 {t("ban")}
               </button>
