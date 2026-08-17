@@ -725,6 +725,8 @@
       "speaking": "Speaking",
       "muted": "Muted",
       "micOn": "Mic on",
+      "audioBlocked": "Browser blocked room audio. Tap to hear other members.",
+      "enableAudio": "Enable audio",
       "moderators": "Moderators",
       "speakers": "Speakers",
       "listeners": "Listeners",

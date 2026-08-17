@@ -300,6 +300,14 @@ function LiveRoomView({
           </Button>
         </div>
       ) : null}
+      {session.audioPlaybackBlocked ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-accent-muted/40 p-3">
+          <p className="text-sm text-secondary">{t("audioBlocked")}</p>
+          <Button size="sm" onClick={() => void session.enableAudioPlayback()}>
+            {t("enableAudio")}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mt-6 grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
         <div className="space-y-6">

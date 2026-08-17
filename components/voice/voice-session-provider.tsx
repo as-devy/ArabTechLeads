@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Room, RemoteParticipant } from "livekit-client";
+import type { RemoteParticipant, RemoteTrack, Room } from "livekit-client";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,8 @@ type VoiceSessionValue = {
   leave: () => Promise<void>;
   setLocalMuted: (muted: boolean) => Promise<void>;
   setAudioDevice: (deviceId: string) => Promise<void>;
+  audioPlaybackBlocked: boolean;
+  enableAudioPlayback: () => Promise<void>;
 };
 
 const VoiceSessionContext = createContext<VoiceSessionValue | null>(null);
@@ -83,6 +85,31 @@ async function fetchToken(roomId: string) {
   return data;
 }
 
+function attachRemoteAudio(track: RemoteTrack) {
+  if (track.kind !== "audio") return;
+  if (track.attachedElements.length > 0) return;
+  const el = track.attach();
+  el.autoplay = true;
+  el.setAttribute("playsinline", "true");
+  el.setAttribute("aria-hidden", "true");
+  document.body.appendChild(el);
+}
+
+function detachRemoteAudio(track: RemoteTrack) {
+  if (track.kind !== "audio") return;
+  for (const el of track.detach()) {
+    el.remove();
+  }
+}
+
+function attachExistingRemoteAudio(room: Room) {
+  for (const participant of room.remoteParticipants.values()) {
+    for (const publication of participant.audioTrackPublications.values()) {
+      if (publication.track) attachRemoteAudio(publication.track);
+    }
+  }
+}
+
 function livekitConnectError(error: unknown): VoiceErrorCode {
   const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
   const message = error instanceof Error ? error.message : "";
@@ -109,14 +136,21 @@ export function VoiceSessionProvider({
   const [speaking, setSpeaking] = useState<SpeakingMap>({});
   const [muted, setMuted] = useState<MuteMap>({});
   const [localMuted, setLocalMutedState] = useState(true);
+  const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
 
   const detach = useCallback(async () => {
     const current = roomRef.current;
     roomRef.current = null;
     if (current) {
+      for (const participant of current.remoteParticipants.values()) {
+        for (const publication of participant.audioTrackPublications.values()) {
+          if (publication.track) detachRemoteAudio(publication.track);
+        }
+      }
       current.removeAllListeners();
       await current.disconnect(true);
     }
+    setAudioPlaybackBlocked(false);
   }, []);
 
   const bindRoom = useCallback((room: Room) => {
@@ -148,6 +182,17 @@ export function VoiceSessionProvider({
     room.on("participantDisconnected", sync);
     room.on("trackMuted", sync);
     room.on("trackUnmuted", sync);
+    room.on("trackSubscribed", (track) => {
+      attachRemoteAudio(track);
+      sync();
+    });
+    room.on("trackUnsubscribed", (track) => {
+      detachRemoteAudio(track);
+      sync();
+    });
+    room.on("audioPlaybackChanged", () => {
+      setAudioPlaybackBlocked(!room.canPlaybackAudio);
+    });
     room.on("activeSpeakersChanged", (speakers) => {
       setSpeaking((prev) => {
         const next = { ...prev };
@@ -179,17 +224,39 @@ export function VoiceSessionProvider({
       }
 
       await detach();
-      const { Room, RoomEvent } = await import("livekit-client");
-      const room = new Room({ adaptiveStream: true, dynacast: true });
+      const { Room } = await import("livekit-client");
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       bindRoom(room);
       roomRef.current = room;
       try {
         await room.connect(token.url!, token.token!, { autoSubscribe: true });
+        attachExistingRemoteAudio(room);
+        try {
+          await room.startAudio();
+        } catch {
+          // Browser autoplay policies can block until a later tap.
+        }
+        setAudioPlaybackBlocked(!room.canPlaybackAudio);
+        const nextRole = ("role" in joined && joined.role) || token.role || "LISTENER";
+        if (input.asSpeaker && nextRole !== "LISTENER") {
+          try {
+            await room.localParticipant.setMicrophoneEnabled(true);
+          } catch {
+            // Stay muted if the browser denies the microphone.
+          }
+        }
         setRoomId(input.roomId);
         setRoomName(input.name);
-        setRole(("role" in joined && joined.role) || token.role || "LISTENER");
+        setRole(nextRole);
         setConnection("connected");
-        void RoomEvent;
         return {};
       } catch (error) {
         await detach();
@@ -218,6 +285,13 @@ export function VoiceSessionProvider({
     try {
       setConnection("connecting");
       await current.connect(token.url!, token.token!);
+      attachExistingRemoteAudio(current);
+      try {
+        await current.startAudio();
+      } catch {
+        // Browser autoplay policies can block until a later tap.
+      }
+      setAudioPlaybackBlocked(!current.canPlaybackAudio);
       setConnection("connected");
     } catch (error) {
       setConnection("failed");
@@ -249,6 +323,17 @@ export function VoiceSessionProvider({
     await room.switchActiveDevice("audioinput", deviceId);
   }, []);
 
+  const enableAudioPlayback = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.startAudio();
+    } catch {
+      // Stay blocked until the browser allows playback.
+    }
+    setAudioPlaybackBlocked(!room.canPlaybackAudio);
+  }, []);
+
   useEffect(() => {
     return () => {
       void detach();
@@ -272,6 +357,8 @@ export function VoiceSessionProvider({
       leave,
       setLocalMuted,
       setAudioDevice,
+      audioPlaybackBlocked,
+      enableAudioPlayback,
     }),
     [
       roomId,
@@ -288,6 +375,8 @@ export function VoiceSessionProvider({
       leave,
       setLocalMuted,
       setAudioDevice,
+      audioPlaybackBlocked,
+      enableAudioPlayback,
     ],
   );
 
@@ -316,6 +405,11 @@ function MiniVoiceBar({ profileId }: { profileId: string }) {
         {speaking ? ` · ${t("speaking")}` : ""}
         {session.connection === "reconnecting" ? ` · ${t("reconnecting")}` : ""}
       </p>
+      {session.audioPlaybackBlocked ? (
+        <Button size="sm" className="mt-3 w-full" onClick={() => void session.enableAudioPlayback()}>
+          {t("enableAudio")}
+        </Button>
+      ) : null}
       <div className="mt-3 flex gap-2">
         <Link href={`/app/voice/${session.roomId}` as never} className="flex-1">
           <Button size="sm" className="w-full">
