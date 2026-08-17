@@ -78,9 +78,18 @@ async function fetchToken(roomId: string) {
     error?: VoiceErrorCode;
   };
   if (!res.ok || !data.token || !data.url) {
-    return { error: data.error ?? ("TOKEN_FAILED" as VoiceErrorCode) };
+    return { error: data.error ?? ("TOKEN_FAILED" as const) };
   }
   return data;
+}
+
+function livekitConnectError(error: unknown): VoiceErrorCode {
+  const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
+  const message = error instanceof Error ? error.message : "";
+  if (status === 401 || /not allowed|unauthorized|invalid token/i.test(message)) {
+    return "TOKEN_FAILED";
+  }
+  return "CONNECTION_FAILED";
 }
 
 export function VoiceSessionProvider({
@@ -160,7 +169,7 @@ export function VoiceSessionProvider({
       if ("error" in joined && joined.error) {
         setConnection("failed");
         setError(joined.error);
-        return { error: joined.error };
+        return { error: joined.error as VoiceErrorCode };
       }
       const token = await fetchToken(input.roomId);
       if ("error" in token && token.error) {
@@ -185,12 +194,7 @@ export function VoiceSessionProvider({
       } catch (error) {
         await detach();
         setConnection("failed");
-        const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
-        const message = error instanceof Error ? error.message : "";
-        const code =
-          status === 401 || /not allowed|unauthorized|invalid token/i.test(message)
-            ? "TOKEN_FAILED"
-            : "CONNECTION_FAILED";
+        const code = livekitConnectError(error);
         setError(code);
         return { error: code };
       }
@@ -217,13 +221,7 @@ export function VoiceSessionProvider({
       setConnection("connected");
     } catch (error) {
       setConnection("failed");
-      const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
-      const message = error instanceof Error ? error.message : "";
-      setError(
-        status === 401 || /not allowed|unauthorized|invalid token/i.test(message)
-          ? "TOKEN_FAILED"
-          : "CONNECTION_FAILED",
-      );
+      setError(livekitConnectError(error));
     }
   }, [connect, roomId, roomName, role]);
 
