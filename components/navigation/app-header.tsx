@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, MessageCircle, Search } from "lucide-react";
+import { Bell, MessageCircle, Mic, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Avatar } from "@/components/ui/avatar";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
+import { cn } from "@/lib/utils";
 
 export function AppHeader({
   name,
@@ -15,6 +16,8 @@ export function AppHeader({
   unreadNotifications?: number;
 }) {
   const t = useTranslations("app");
+  const pathname = usePathname();
+  const voiceActive = pathname.startsWith("/app/voice");
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/80 bg-background/90 px-4 backdrop-blur-md lg:px-6">
@@ -27,6 +30,16 @@ export function AppHeader({
           className="h-10 w-full rounded-lg border border-border bg-surface-elevated ps-10 pe-3 text-sm outline-none placeholder:text-muted focus:border-accent"
         />
       </form>
+      <Link
+        href="/app/voice"
+        className={cn(
+          "rounded-lg p-2 hover:bg-accent-muted hover:text-foreground lg:hidden",
+          voiceActive ? "text-foreground" : "text-secondary",
+        )}
+        aria-label={t("nav.voice")}
+      >
+        <Mic className="size-5" strokeWidth={1.7} />
+      </Link>
       <Link
         href="/app/notifications"
         className="relative rounded-lg p-2 text-secondary hover:bg-accent-muted hover:text-foreground"
