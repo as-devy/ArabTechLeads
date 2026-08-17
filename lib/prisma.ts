@@ -1,3 +1,4 @@
+import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 
@@ -5,6 +6,7 @@ const SCHEMA_GEN = 9;
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaPool: Pool | undefined;
   prismaGen: number | undefined;
   prismaStale: boolean | undefined;
 };
@@ -12,6 +14,24 @@ const globalForPrisma = globalThis as unknown as {
 function hasDelegate(client: PrismaClient, name: string) {
   const delegate = Reflect.get(client, name, client) as { findMany?: unknown } | undefined;
   return typeof delegate?.findMany === "function";
+}
+
+function getPool() {
+  if (globalForPrisma.prismaPool) return globalForPrisma.prismaPool;
+
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  const pool = new Pool({
+    connectionString,
+    max: process.env.NODE_ENV === "production" ? 3 : 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  });
+  globalForPrisma.prismaPool = pool;
+  return pool;
 }
 
 export function getPrisma() {
@@ -22,20 +42,12 @@ export function getPrisma() {
     }
   }
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error("DATABASE_URL is not set");
-  }
-
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg(getPool());
   const client = new PrismaClient({ adapter });
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = client;
-    globalForPrisma.prismaGen = SCHEMA_GEN;
-    globalForPrisma.prismaStale = !hasDelegate(client, "voiceRoom");
-  }
-
+  globalForPrisma.prisma = client;
+  globalForPrisma.prismaGen = SCHEMA_GEN;
+  globalForPrisma.prismaStale = !hasDelegate(client, "voiceRoom");
   return client;
 }
 

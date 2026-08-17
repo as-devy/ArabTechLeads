@@ -12,10 +12,16 @@ export default async function LoginPage({ params, searchParams }: Props) {
   const { error } = await searchParams;
   setRequestLocale(locale);
   const t = await getTranslations("auth");
+  const oauthFailed = Boolean(
+    error &&
+      ["oauth", "Configuration", "AccessDenied", "OAuthCallback", "OAuthAccountNotLinked", "Callback"].includes(
+        error,
+      ),
+  );
 
   return (
     <AuthShell title={t("loginTitle")} subtitle={t("loginSubtitle")}>
-      {error === "oauth" ? (
+      {oauthFailed ? (
         <p
           className="mb-4 rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error"
           role="alert"

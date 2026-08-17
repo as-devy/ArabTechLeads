@@ -46,6 +46,7 @@ export async function upsertGoogleUser(profile: GoogleProfile) {
       image: profile.image,
       profile: {
         create: {
+          id,
           email: profile.email,
           fullName: profile.name,
           avatarUrl: profile.image,
