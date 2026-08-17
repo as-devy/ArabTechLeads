@@ -31,8 +31,8 @@ export async function AuthShell({ title, subtitle, children }: Props) {
       </header>
 
       <main className="relative z-10 flex flex-1 items-center justify-center px-5 py-8 sm:px-8">
-        <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-16">
-          <section className="mx-auto w-full max-w-[400px] lg:mx-0 lg:justify-self-center">
+        <div className="grid w-full max-w-5xl items-center gap-10 xl:grid-cols-2 xl:gap-16">
+          <section className="mx-auto w-full max-w-[400px] xl:mx-0 xl:justify-self-center">
             <div className="mb-7">
               <p className="text-xs font-medium tracking-[0.08em] text-accent uppercase">
                 {brand("motto")}
@@ -52,7 +52,7 @@ export async function AuthShell({ title, subtitle, children }: Props) {
             </p>
           </section>
 
-          <section className="mx-auto flex w-full max-w-[640px] items-center justify-center lg:justify-self-center">
+          <section className="mx-auto hidden w-full max-w-[640px] items-center justify-center xl:flex xl:justify-self-center">
             <AuthNetworkScene />
           </section>
         </div>

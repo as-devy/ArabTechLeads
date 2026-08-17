@@ -100,7 +100,7 @@ function curvePath(from: Point, to: Point, bend = 0.12) {
 export function AuthNetworkScene() {
   return (
     <div
-      className="auth-constellation relative mx-auto aspect-square w-full max-w-[560px] lg:max-w-[620px]"
+      className="auth-constellation relative mx-auto hidden aspect-square w-full max-w-[560px] xl:block xl:max-w-[620px]"
       aria-hidden="true"
     >
       <div className="pointer-events-none absolute inset-[6%] rounded-full bg-accent/[0.05] blur-3xl" />

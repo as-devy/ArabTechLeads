@@ -13,16 +13,19 @@ export function AuthInteractiveBackground() {
   const reduceMotion = useRef(false);
 
   useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    reduceMotion.current = media.matches;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    reduceMotion.current = motion.matches;
 
-    const onMediaChange = () => {
-      reduceMotion.current = media.matches;
+    const onMotionChange = () => {
+      reduceMotion.current = motion.matches;
     };
-    media.addEventListener("change", onMediaChange);
+    motion.addEventListener("change", onMotionChange);
 
     const root = rootRef.current;
-    if (!root) return;
+    if (!root) {
+      return () => motion.removeEventListener("change", onMotionChange);
+    }
 
     const setVars = (x: number, y: number) => {
       const xp = `${(x * 100).toFixed(2)}%`;
@@ -52,8 +55,6 @@ export function AuthInteractiveBackground() {
       raf.current = window.requestAnimationFrame(tick);
     };
 
-    raf.current = window.requestAnimationFrame(tick);
-
     const onMove = (event: PointerEvent) => {
       const rect = root.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
@@ -67,19 +68,43 @@ export function AuthInteractiveBackground() {
       target.current = { x: 0.5, y: 0.45 };
     };
 
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerleave", onLeave);
-
-    return () => {
-      media.removeEventListener("change", onMediaChange);
+    const stop = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerleave", onLeave);
-      if (raf.current !== null) window.cancelAnimationFrame(raf.current);
+      if (raf.current !== null) {
+        window.cancelAnimationFrame(raf.current);
+        raf.current = null;
+      }
+    };
+
+    const start = () => {
+      if (raf.current !== null) return;
+      raf.current = window.requestAnimationFrame(tick);
+      window.addEventListener("pointermove", onMove, { passive: true });
+      window.addEventListener("pointerleave", onLeave);
+    };
+
+    const syncViewport = () => {
+      if (desktop.matches) start();
+      else stop();
+    };
+
+    syncViewport();
+    desktop.addEventListener("change", syncViewport);
+
+    return () => {
+      motion.removeEventListener("change", onMotionChange);
+      desktop.removeEventListener("change", syncViewport);
+      stop();
     };
   }, []);
 
   return (
-    <div ref={rootRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <div
+      ref={rootRef}
+      className="pointer-events-none absolute inset-0 hidden overflow-hidden xl:block"
+      aria-hidden="true"
+    >
       <div className="absolute inset-0 auth-page-gradient" />
       <div ref={spotlightRef} className="auth-mouse-spotlight absolute inset-0" />
       <div ref={gridRef} className="auth-math-grid auth-math-grid-interactive absolute inset-0" />
