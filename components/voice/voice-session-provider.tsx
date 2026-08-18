@@ -10,12 +10,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { RemoteParticipant, RemoteTrack, Room } from "livekit-client";
+import type { LocalTrack, RemoteParticipant, RemoteTrack, Room, Track } from "livekit-client";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { joinVoiceRoomAction, leaveVoiceRoomAction } from "@/lib/actions/voice";
-import type { VoiceErrorCode, VoiceRole } from "@/lib/voice/types";
+import type { VoiceErrorCode, VoiceRole, VoiceVideoFeed } from "@/lib/voice/types";
 
 type ConnectionStatus =
   | "idle"
@@ -39,6 +39,7 @@ type VoiceSessionValue = {
   speaking: SpeakingMap;
   muted: MuteMap;
   localMuted: boolean;
+  liveParticipants: { identity: string; name: string }[];
   connect: (input: {
     roomId: string;
     name: string;
@@ -50,6 +51,14 @@ type VoiceSessionValue = {
   setAudioDevice: (deviceId: string) => Promise<void>;
   audioPlaybackBlocked: boolean;
   enableAudioPlayback: () => Promise<void>;
+  localCamera: boolean;
+  localScreenShare: boolean;
+  videoFeeds: VoiceVideoFeed[];
+  mediaError: VoiceErrorCode | null;
+  canShareScreen: boolean;
+  setCameraEnabled: (enabled: boolean) => Promise<void>;
+  setScreenShareEnabled: (enabled: boolean) => Promise<void>;
+  bindVideoElement: (trackSid: string, element: HTMLVideoElement | null) => void;
 };
 
 const VoiceSessionContext = createContext<VoiceSessionValue | null>(null);
@@ -85,14 +94,71 @@ async function fetchToken(roomId: string) {
   return data;
 }
 
+function livekitConnectError(error: unknown): VoiceErrorCode {
+  const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
+  const message = error instanceof Error ? error.message : "";
+  if (status === 401 || /not allowed|unauthorized|invalid token/i.test(message)) {
+    return "TOKEN_FAILED";
+  }
+  return "CONNECTION_FAILED";
+}
+
+function isMobileClient() {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches)
+  );
+}
+
+function playbackBoost() {
+  return isMobileClient() ? 2.2 : 1.25;
+}
+
+let playbackContext: AudioContext | null = null;
+
+function getPlaybackContext() {
+  if (playbackContext) return playbackContext;
+  const Ctx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  playbackContext = new Ctx({ latencyHint: "interactive" });
+  return playbackContext;
+}
+
+function boostRemoteAudio(track: RemoteTrack) {
+  if (track.kind !== "audio") return;
+  if ("setVolume" in track && typeof track.setVolume === "function") {
+    track.setVolume(1);
+  }
+  const ctx = getPlaybackContext();
+  if (
+    ctx &&
+    "setWebAudioPlugins" in track &&
+    typeof track.setWebAudioPlugins === "function"
+  ) {
+    const gain = ctx.createGain();
+    gain.gain.value = playbackBoost();
+    track.setWebAudioPlugins([gain]);
+  }
+}
+
 function attachRemoteAudio(track: RemoteTrack) {
   if (track.kind !== "audio") return;
-  if (track.attachedElements.length > 0) return;
+  if (track.attachedElements.length > 0) {
+    boostRemoteAudio(track);
+    return;
+  }
   const el = track.attach();
   el.autoplay = true;
+  el.volume = 1;
+  el.muted = false;
   el.setAttribute("playsinline", "true");
   el.setAttribute("aria-hidden", "true");
   document.body.appendChild(el);
+  boostRemoteAudio(track);
+  void el.play().catch(() => undefined);
 }
 
 function detachRemoteAudio(track: RemoteTrack) {
@@ -110,13 +176,33 @@ function attachExistingRemoteAudio(room: Room) {
   }
 }
 
-function livekitConnectError(error: unknown): VoiceErrorCode {
-  const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
-  const message = error instanceof Error ? error.message : "";
-  if (status === 401 || /not allowed|unauthorized|invalid token/i.test(message)) {
-    return "TOKEN_FAILED";
+async function preferLoudspeaker(room: Room) {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const outputs = devices.filter((device) => device.kind === "audiooutput");
+    if (outputs.length === 0) return;
+    const speaker =
+      outputs.find((device) => /speaker|loudspeaker/i.test(device.label)) ??
+      outputs.find((device) => !/earpiece|headset|headphone|bluetooth|handset/i.test(device.label));
+    if (speaker?.deviceId) {
+      await room.switchActiveDevice("audiooutput", speaker.deviceId);
+    }
+  } catch {
+    // setSinkId is missing on iOS; webAudioMix handles playback there.
   }
-  return "CONNECTION_FAILED";
+}
+
+async function unlockPlayback(room: Room) {
+  const ctx = getPlaybackContext();
+  if (ctx?.state === "suspended") {
+    await ctx.resume().catch(() => undefined);
+  }
+  try {
+    await room.startAudio();
+  } catch {
+    // Browser autoplay policies can block until a later tap.
+  }
+  await preferLoudspeaker(room);
 }
 
 export function VoiceSessionProvider({
@@ -137,8 +223,37 @@ export function VoiceSessionProvider({
   const [muted, setMuted] = useState<MuteMap>({});
   const [localMuted, setLocalMutedState] = useState(true);
   const [audioPlaybackBlocked, setAudioPlaybackBlocked] = useState(false);
+  const [liveParticipants, setLiveParticipants] = useState<
+    { identity: string; name: string }[]
+  >([]);
+  const [localCamera, setLocalCamera] = useState(false);
+  const [localScreenShare, setLocalScreenShare] = useState(false);
+  const [videoFeeds, setVideoFeeds] = useState<VoiceVideoFeed[]>([]);
+  const [mediaError, setMediaError] = useState<VoiceErrorCode | null>(null);
+  const [canShareScreen, setCanShareScreen] = useState(false);
+  const videoTracksRef = useRef(new Map<string, LocalTrack | RemoteTrack | Track>());
+  const videoElsRef = useRef(new Map<string, HTMLVideoElement>());
+  const connectOpRef = useRef<Promise<unknown> | null>(null);
+  const abortedRef = useRef(false);
+  const connectingLockRef = useRef(false);
+
+  const resetMediaState = useCallback(() => {
+    setAudioPlaybackBlocked(false);
+    setLiveParticipants([]);
+    setLocalCamera(false);
+    setLocalScreenShare(false);
+    setVideoFeeds([]);
+    setMediaError(null);
+    videoTracksRef.current.clear();
+    videoElsRef.current.clear();
+  }, []);
 
   const detach = useCallback(async () => {
+    abortedRef.current = true;
+    const pending = connectOpRef.current;
+    if (pending) {
+      await pending.catch(() => undefined);
+    }
     const current = roomRef.current;
     roomRef.current = null;
     if (current) {
@@ -147,11 +262,15 @@ export function VoiceSessionProvider({
           if (publication.track) detachRemoteAudio(publication.track);
         }
       }
+      try {
+        await current.disconnect(true);
+      } catch {
+        // LiveKit rejects if disconnect races an in-flight connect.
+      }
       current.removeAllListeners();
-      await current.disconnect(true);
     }
-    setAudioPlaybackBlocked(false);
-  }, []);
+    resetMediaState();
+  }, [resetMediaState]);
 
   const bindRoom = useCallback((room: Room) => {
     const sync = () => {
@@ -166,6 +285,31 @@ export function VoiceSessionProvider({
       setSpeaking(nextSpeaking);
       setParticipantCount(1 + room.remoteParticipants.size);
       setLocalMutedState(!room.localParticipant.isMicrophoneEnabled);
+      setLiveParticipants(
+        locals.map((participant) => ({
+          identity: participant.identity,
+          name: participant.name || participant.identity,
+        })),
+      );
+      setLocalCamera(room.localParticipant.isCameraEnabled);
+      setLocalScreenShare(room.localParticipant.isScreenShareEnabled);
+      const nextTracks = new Map<string, LocalTrack | RemoteTrack | Track>();
+      const feeds: VoiceVideoFeed[] = [];
+      for (const participant of locals) {
+        for (const publication of participant.videoTrackPublications.values()) {
+          if (!publication.track || publication.isMuted) continue;
+          nextTracks.set(publication.trackSid, publication.track);
+          feeds.push({
+            identity: participant.identity,
+            name: participant.name || participant.identity,
+            source: publication.source === "screen_share" ? "screen" : "camera",
+            trackSid: publication.trackSid,
+            isLocal: participant.isLocal,
+          });
+        }
+      }
+      videoTracksRef.current = nextTracks;
+      setVideoFeeds(feeds);
     };
 
     room.on("connectionStateChanged", (state) => {
@@ -208,8 +352,11 @@ export function VoiceSessionProvider({
 
   const connect = useCallback(
     async (input: { roomId: string; name: string; asSpeaker: boolean }) => {
+      if (connectingLockRef.current) return {};
+      connectingLockRef.current = true;
       setError(null);
       setConnection("connecting");
+      try {
       const joined = await joinVoiceRoomAction(input.roomId, input.asSpeaker);
       if ("error" in joined && joined.error) {
         setConnection("failed");
@@ -223,27 +370,52 @@ export function VoiceSessionProvider({
         return { error: token.error };
       }
 
+      abortedRef.current = false;
       await detach();
-      const { Room } = await import("livekit-client");
+      abortedRef.current = false;
+      const { Room, AudioPresets, VideoPresets } = await import("livekit-client");
+      const audioContext = getPlaybackContext();
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
+        disconnectOnPageLeave: false,
+        webAudioMix: audioContext ? { audioContext } : true,
         audioCaptureDefaults: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          channelCount: 1,
+          voiceIsolation: true,
+        },
+        videoCaptureDefaults: {
+          facingMode: "user",
+          resolution: VideoPresets.h540.resolution,
+        },
+        publishDefaults: {
+          audioPreset: AudioPresets.speech,
+          dtx: true,
+          red: true,
+          forceStereo: false,
+          simulcast: true,
         },
       });
       bindRoom(room);
       roomRef.current = room;
       try {
-        await room.connect(token.url!, token.token!, { autoSubscribe: true });
-        attachExistingRemoteAudio(room);
-        try {
-          await room.startAudio();
-        } catch {
-          // Browser autoplay policies can block until a later tap.
+        const connecting = room.connect(token.url!, token.token!, { autoSubscribe: true });
+        connectOpRef.current = connecting;
+        await connecting;
+        connectOpRef.current = null;
+        if (abortedRef.current || roomRef.current !== room) {
+          try {
+            await room.disconnect(true);
+          } catch {
+            // Already disconnected.
+          }
+          return {};
         }
+        attachExistingRemoteAudio(room);
+        await unlockPlayback(room);
         setAudioPlaybackBlocked(!room.canPlaybackAudio);
         const nextRole = ("role" in joined && joined.role) || token.role || "LISTENER";
         if (input.asSpeaker && nextRole !== "LISTENER") {
@@ -252,18 +424,25 @@ export function VoiceSessionProvider({
           } catch {
             // Stay muted if the browser denies the microphone.
           }
+          await preferLoudspeaker(room);
         }
+        if (abortedRef.current || roomRef.current !== room) return {};
         setRoomId(input.roomId);
         setRoomName(input.name);
         setRole(nextRole);
         setConnection("connected");
         return {};
       } catch (error) {
+        connectOpRef.current = null;
+        if (abortedRef.current) return {};
         await detach();
         setConnection("failed");
         const code = livekitConnectError(error);
         setError(code);
         return { error: code };
+      }
+      } finally {
+        connectingLockRef.current = false;
       }
     },
     [bindRoom, detach],
@@ -284,16 +463,17 @@ export function VoiceSessionProvider({
     }
     try {
       setConnection("connecting");
-      await current.connect(token.url!, token.token!);
+      const connecting = current.connect(token.url!, token.token!);
+      connectOpRef.current = connecting;
+      await connecting;
+      connectOpRef.current = null;
       attachExistingRemoteAudio(current);
-      try {
-        await current.startAudio();
-      } catch {
-        // Browser autoplay policies can block until a later tap.
-      }
+      await unlockPlayback(current);
       setAudioPlaybackBlocked(!current.canPlaybackAudio);
       setConnection("connected");
     } catch (error) {
+      connectOpRef.current = null;
+      if (abortedRef.current) return;
       setConnection("failed");
       setError(livekitConnectError(error));
     }
@@ -315,6 +495,7 @@ export function VoiceSessionProvider({
     if (!room) return;
     await room.localParticipant.setMicrophoneEnabled(!nextMuted);
     setLocalMutedState(nextMuted);
+    if (!nextMuted) await preferLoudspeaker(room);
   }, []);
 
   const setAudioDevice = useCallback(async (deviceId: string) => {
@@ -327,11 +508,59 @@ export function VoiceSessionProvider({
     const room = roomRef.current;
     if (!room) return;
     try {
-      await room.startAudio();
+      await unlockPlayback(room);
     } catch {
       // Stay blocked until the browser allows playback.
     }
     setAudioPlaybackBlocked(!room.canPlaybackAudio);
+  }, []);
+
+  const setCameraEnabled = useCallback(async (enabled: boolean) => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.localParticipant.setCameraEnabled(enabled);
+      setLocalCamera(room.localParticipant.isCameraEnabled);
+      setMediaError(null);
+    } catch {
+      setMediaError("CAMERA_FAILED");
+    }
+  }, []);
+
+  const setScreenShareEnabled = useCallback(async (enabled: boolean) => {
+    const room = roomRef.current;
+    if (!room) return;
+    if (enabled && !navigator.mediaDevices?.getDisplayMedia) {
+      setMediaError("SCREEN_SHARE_UNSUPPORTED");
+      return;
+    }
+    try {
+      await room.localParticipant.setScreenShareEnabled(enabled, enabled ? { audio: true } : undefined);
+      setLocalScreenShare(room.localParticipant.isScreenShareEnabled);
+      setMediaError(null);
+    } catch {
+      setMediaError("SCREEN_SHARE_FAILED");
+    }
+  }, []);
+
+  const bindVideoElement = useCallback((trackSid: string, element: HTMLVideoElement | null) => {
+    const track = videoTracksRef.current.get(trackSid);
+    const previous = videoElsRef.current.get(trackSid);
+    if (previous && track) {
+      track.detach(previous);
+      videoElsRef.current.delete(trackSid);
+    }
+    if (!element || !track) return;
+    track.attach(element);
+    element.playsInline = true;
+    element.muted = true;
+    element.autoplay = true;
+    videoElsRef.current.set(trackSid, element);
+    void element.play().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setCanShareScreen(Boolean(navigator.mediaDevices && "getDisplayMedia" in navigator.mediaDevices));
   }, []);
 
   useEffect(() => {
@@ -352,6 +581,7 @@ export function VoiceSessionProvider({
       speaking,
       muted,
       localMuted,
+      liveParticipants,
       connect,
       reconnect,
       leave,
@@ -359,6 +589,14 @@ export function VoiceSessionProvider({
       setAudioDevice,
       audioPlaybackBlocked,
       enableAudioPlayback,
+      localCamera,
+      localScreenShare,
+      videoFeeds,
+      mediaError,
+      canShareScreen,
+      setCameraEnabled,
+      setScreenShareEnabled,
+      bindVideoElement,
     }),
     [
       roomId,
@@ -370,6 +608,7 @@ export function VoiceSessionProvider({
       speaking,
       muted,
       localMuted,
+      liveParticipants,
       connect,
       reconnect,
       leave,
@@ -377,6 +616,14 @@ export function VoiceSessionProvider({
       setAudioDevice,
       audioPlaybackBlocked,
       enableAudioPlayback,
+      localCamera,
+      localScreenShare,
+      videoFeeds,
+      mediaError,
+      canShareScreen,
+      setCameraEnabled,
+      setScreenShareEnabled,
+      bindVideoElement,
     ],
   );
 

@@ -116,4 +116,15 @@ export type VoiceErrorCode =
   | "TOKEN_FAILED"
   | "CONNECTION_FAILED"
   | "INVALID"
-  | "BLOCKED";
+  | "BLOCKED"
+  | "CAMERA_FAILED"
+  | "SCREEN_SHARE_FAILED"
+  | "SCREEN_SHARE_UNSUPPORTED";
+
+export type VoiceVideoFeed = {
+  identity: string;
+  name: string;
+  source: "camera" | "screen";
+  trackSid: string;
+  isLocal: boolean;
+};

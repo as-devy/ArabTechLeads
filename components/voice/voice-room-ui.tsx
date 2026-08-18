@@ -18,7 +18,7 @@ import {
   setVoiceRoleAction,
   startVoiceRoomAction,
 } from "@/lib/actions/voice";
-import type { VoiceErrorCode, VoiceMemberPreview, VoiceRole, VoiceRoomState } from "@/lib/voice/types";
+import type { VoiceErrorCode, VoiceMemberPreview, VoiceRole, VoiceRoomState, VoiceVideoFeed } from "@/lib/voice/types";
 import { MODERATOR_ROLES, SPEAKING_ROLES } from "@/lib/voice/types";
 import { cn } from "@/lib/utils";
 
@@ -73,13 +73,20 @@ function PreJoinScreen({
   const [permission, setPermission] = useState<MicPermission>("unknown");
   const [level, setLevel] = useState(0);
   const [pending, start] = useTransition();
+  const [joiningAs, setJoiningAs] = useState<"listener" | "speaker" | null>(null);
+  const joining = joiningAs !== null || session.connection === "connecting";
 
   const join = (asSpeaker: boolean) => {
-    start(async () => {
+    if (joining) return;
+    setJoiningAs(asSpeaker ? "speaker" : "listener");
+    void (async () => {
       setError(null);
       const result = await session.connect({ roomId: room.id, name: room.name, asSpeaker });
-      if (result.error) setError(result.error);
-    });
+      if (result.error) {
+        setError(result.error);
+        setJoiningAs(null);
+      }
+    })();
   };
 
   if (room.status === "ENDED") {
@@ -115,13 +122,19 @@ function PreJoinScreen({
         <Button
           type="button"
           variant="secondary"
-          disabled={pending || !livekitConfigured || room.status === "SCHEDULED"}
+          disabled={joining || pending || !livekitConfigured || room.status === "SCHEDULED"}
+          aria-busy={joiningAs === "listener"}
           onClick={() => join(false)}
         >
-          {t("joinListener")}
+          {joiningAs === "listener" ? t("lettingYouIn") : t("joinListener")}
         </Button>
-        <Button type="button" disabled={pending || !livekitConfigured || room.status === "SCHEDULED"} onClick={() => join(true)}>
-          {t("joinSpeaker")}
+        <Button
+          type="button"
+          disabled={joining || pending || !livekitConfigured || room.status === "SCHEDULED"}
+          aria-busy={joiningAs === "speaker"}
+          onClick={() => join(true)}
+        >
+          {joiningAs === "speaker" ? t("lettingYouIn") : t("joinSpeaker")}
         </Button>
       </div>
       {room.status === "SCHEDULED" ? (
@@ -227,6 +240,38 @@ function MicPreview({
   );
 }
 
+function mergeLiveMembers(
+  members: VoiceMemberPreview[],
+  liveParticipants: { identity: string; name: string }[],
+  connected: boolean,
+  profileId: string,
+  myRole: VoiceRole | null,
+): VoiceMemberPreview[] {
+  const liveIds = new Set(liveParticipants.map((p) => p.identity));
+  const fromDb = connected
+    ? members.filter((m) => liveIds.has(m.profileId) || m.profileId === profileId)
+    : members;
+  const known = new Set(fromDb.map((m) => m.profileId));
+  const extras: VoiceMemberPreview[] = liveParticipants
+    .filter((p) => !known.has(p.identity))
+    .map((p) => ({
+      id: `live:${p.identity}`,
+      profileId: p.identity,
+      role: p.identity === profileId && myRole ? myRole : "LISTENER",
+      status: "ACTIVE",
+      handRaised: false,
+      forceMuted: false,
+      joinedAt: new Date().toISOString(),
+      profile: {
+        id: p.identity,
+        username: null,
+        fullName: p.name,
+        avatarUrl: null,
+      },
+    }));
+  return [...fromDb, ...extras];
+}
+
 function LiveRoomView({
   initial,
   profileId,
@@ -243,20 +288,28 @@ function LiveRoomView({
   const [pending, start] = useTransition();
 
   useEffect(() => {
-    const timer = window.setInterval(async () => {
+    let cancelled = false;
+    const load = async () => {
+      if (session.connection !== "connected" || session.roomId !== initial.id) return;
       const res = await fetch(`/api/voice/state?roomId=${initial.id}`, { credentials: "include" });
-      if (!res.ok) return;
+      if (!res.ok || cancelled) return;
       const data = (await res.json()) as { state?: VoiceRoomState };
-      if (data.state) setState(data.state);
-      if (data.state?.status === "ENDED") {
+      if (cancelled || !data.state) return;
+      setState(data.state);
+      if (data.state.status === "ENDED") {
         await session.leave();
       }
-      if (data.state?.myStatus === "REMOVED" || data.state?.myStatus === "BANNED") {
+      if (data.state.myStatus === "REMOVED" || data.state.myStatus === "BANNED") {
         await session.leave();
       }
-    }, 4000);
-    return () => window.clearInterval(timer);
-  }, [initial.id, session]);
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [initial.id, session.connection, session.roomId, session.leave]);
 
   useEffect(() => {
     void navigator.mediaDevices?.enumerateDevices().then((list) => {
@@ -264,16 +317,28 @@ function LiveRoomView({
     });
   }, []);
 
+  const visibleMembers = useMemo(
+    () =>
+      mergeLiveMembers(
+        state.members,
+        session.liveParticipants,
+        session.connection === "connected",
+        profileId,
+        session.role ?? state.myRole,
+      ),
+    [state.members, session.liveParticipants, session.connection, session.role, state.myRole, profileId],
+  );
+
   const grouped = useMemo(() => {
-    const mods = state.members.filter((m) => m.role === "OWNER" || m.role === "MODERATOR");
-    const speakers = state.members.filter((m) => m.role === "SPEAKER");
-    const listeners = state.members.filter((m) => m.role === "LISTENER");
+    const mods = visibleMembers.filter((m) => m.role === "OWNER" || m.role === "MODERATOR");
+    const speakers = visibleMembers.filter((m) => m.role === "SPEAKER");
+    const listeners = visibleMembers.filter((m) => m.role === "LISTENER");
     return { mods, speakers, listeners };
-  }, [state.members]);
+  }, [visibleMembers]);
 
   const canModerate = Boolean(state.myRole && MODERATOR_ROLES.includes(state.myRole));
   const canSpeak = Boolean(state.myRole && SPEAKING_ROLES.includes(state.myRole));
-  const raised = state.members.filter((m) => m.handRaised && m.role === "LISTENER");
+  const raised = visibleMembers.filter((m) => m.handRaised && m.role === "LISTENER");
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-5xl flex-col px-4 py-4 lg:px-6">
@@ -281,7 +346,7 @@ function LiveRoomView({
         <div>
           <h1 className="text-xl font-semibold">{state.name}</h1>
           <p className="mt-1 text-xs text-muted">
-            {t("participants", { count: Math.max(state.participantCount, session.participantCount) })}
+            {t("participants", { count: Math.max(visibleMembers.length, session.participantCount) })}
             {state.locked ? ` · ${t("locked")}` : ""}
           </p>
         </div>
@@ -308,6 +373,29 @@ function LiveRoomView({
           </Button>
         </div>
       ) : null}
+      {session.mediaError ? (
+        <p className="mt-4 text-sm text-error">{t(`errors.${session.mediaError}`)}</p>
+      ) : null}
+
+      {(() => {
+        const screens = session.videoFeeds.filter((feed) => feed.source === "screen");
+        const cameras = session.videoFeeds.filter((feed) => feed.source === "camera");
+        if (screens.length === 0 && cameras.length === 0) return null;
+        return (
+          <div className="mt-6 space-y-3">
+            {screens.map((feed) => (
+              <VideoFeedCard key={feed.trackSid} feed={feed} featured />
+            ))}
+            {cameras.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {cameras.map((feed) => (
+                  <VideoFeedCard key={feed.trackSid} feed={feed} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <div className="mt-6 grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
         <div className="space-y-6">
@@ -411,6 +499,26 @@ function LiveRoomView({
         ) : null}
         <Button
           type="button"
+          variant={session.localCamera ? "primary" : "outline"}
+          className="min-h-12 min-w-28"
+          aria-label={session.localCamera ? t("cameraOff") : t("cameraOn")}
+          onClick={() => void session.setCameraEnabled(!session.localCamera)}
+        >
+          {session.localCamera ? t("cameraOff") : t("cameraOn")}
+        </Button>
+        {session.canShareScreen ? (
+          <Button
+            type="button"
+            variant={session.localScreenShare ? "primary" : "outline"}
+            className="min-h-12 min-w-28"
+            aria-label={session.localScreenShare ? t("stopShare") : t("shareScreen")}
+            onClick={() => void session.setScreenShareEnabled(!session.localScreenShare)}
+          >
+            {session.localScreenShare ? t("stopShare") : t("shareScreen")}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
           variant="outline"
           className="min-h-12 min-w-28"
           aria-label={t("leave")}
@@ -420,6 +528,36 @@ function LiveRoomView({
         </Button>
       </div>
     </div>
+  );
+}
+
+function VideoFeedCard({ feed, featured = false }: { feed: VoiceVideoFeed; featured?: boolean }) {
+  const t = useTranslations("app.voice");
+  const session = useVoiceSession();
+  return (
+    <figure
+      className={cn(
+        "relative overflow-hidden rounded-xl border border-border bg-black",
+        featured ? "aspect-video w-full" : "aspect-video",
+      )}
+    >
+      <video
+        ref={(element) => session.bindVideoElement(feed.trackSid, element)}
+        className={cn(
+          "h-full w-full",
+          feed.source === "camera" ? "object-cover" : "object-contain",
+          feed.source === "camera" && feed.isLocal && "-scale-x-100",
+        )}
+        autoPlay
+        playsInline
+        muted
+      />
+      <figcaption className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-3 py-1.5 text-xs text-white">
+        {feed.name}
+        {feed.source === "screen" ? ` · ${t("screenShare")}` : ""}
+        {feed.isLocal ? ` · ${t("you")}` : ""}
+      </figcaption>
+    </figure>
   );
 }
 

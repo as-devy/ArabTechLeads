@@ -704,6 +704,7 @@
       "lowerHand": "Lower hand",
       "joinListener": "Join as listener",
       "joinSpeaker": "Join as speaker",
+      "lettingYouIn": "Letting you in...",
       "joinTitle": "Join voice room",
       "hostedBy": "Hosted by",
       "participants": "{count, plural, one {# participant} other {# participants}}",
@@ -727,6 +728,12 @@
       "micOn": "Mic on",
       "audioBlocked": "Browser blocked room audio. Tap to hear other members.",
       "enableAudio": "Enable audio",
+      "cameraOn": "Start camera",
+      "cameraOff": "Stop camera",
+      "shareScreen": "Share screen",
+      "stopShare": "Stop sharing",
+      "screenShare": "Screen",
+      "you": "You",
       "moderators": "Moderators",
       "speakers": "Speakers",
       "listeners": "Listeners",
@@ -795,7 +802,10 @@
         "TOKEN_FAILED": "Could not create a voice token. Make sure LIVEKIT_API_KEY and LIVEKIT_API_SECRET belong to the same LiveKit project.",
         "CONNECTION_FAILED": "Could not reach the LiveKit server. Check NEXT_PUBLIC_LIVEKIT_URL (for example wss://your-project.livekit.cloud) and that the API key and secret match that project.",
         "INVALID": "Check the submitted details.",
-        "BLOCKED": "This invite cannot be completed because of a block."
+        "BLOCKED": "This invite cannot be completed because of a block.",
+        "CAMERA_FAILED": "Could not open the camera.",
+        "SCREEN_SHARE_FAILED": "Could not share the screen.",
+        "SCREEN_SHARE_UNSUPPORTED": "Screen sharing is not available in this browser."
       }
     }
   }

@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, TrackSource } from "livekit-server-sdk";
 import {
   getLiveKitApiKey,
   getLiveKitApiSecret,
@@ -13,6 +13,12 @@ const EMPTY_TIMEOUT_SECONDS = 600;
 function roomService() {
   if (!isLiveKitConfigured()) return null;
   return new RoomServiceClient(livekitHttpUrl(), getLiveKitApiKey(), getLiveKitApiSecret());
+}
+
+function publishSources(canSpeak: boolean) {
+  const sources = [TrackSource.CAMERA, TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO];
+  if (canSpeak) sources.push(TrackSource.MICROPHONE);
+  return sources;
 }
 
 export async function createLiveKitAccessToken(input: {
@@ -35,7 +41,8 @@ export async function createLiveKitAccessToken(input: {
     roomJoin: true,
     roomCreate: true,
     room: livekitRoomName(input.roomId),
-    canPublish: input.canPublish,
+    canPublish: true,
+    canPublishSources: publishSources(input.canPublish),
     canSubscribe: true,
     canPublishData: true,
     canUpdateOwnMetadata: true,
@@ -71,7 +78,8 @@ export async function updateLiveKitPublish(roomId: string, identity: string, can
   try {
     await svc.updateParticipant(livekitRoomName(roomId), identity, {
       permission: {
-        canPublish,
+        canPublish: true,
+        canPublishSources: publishSources(canPublish),
         canSubscribe: true,
         canPublishData: true,
       },

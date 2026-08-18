@@ -270,7 +270,6 @@ export async function joinVoiceRoomAction(roomId: string, asSpeaker: boolean) {
     await logVoiceEvent(roomId, VOICE_EVENT.USER_JOINED, me.id);
     await touchRoom(roomId);
     await track(me.id, "voice_joined");
-    revalidateVoice(roomId);
     return { ok: true as const, role: member.role };
   } catch (error) {
     return resultError(error);

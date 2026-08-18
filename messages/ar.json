@@ -705,6 +705,7 @@
       "lowerHand": "خفض اليد",
       "joinListener": "انضمام كمستمع",
       "joinSpeaker": "انضمام كمتحدث",
+      "lettingYouIn": "جارٍ إدخالك...",
       "joinTitle": "الانضمام إلى الغرفة الصوتية",
       "hostedBy": "يستضيفها",
       "participants": "{count, plural, zero {# مشاركين} one {مشارك واحد} two {مشاركان} few {# مشاركين} many {# مشاركًا} other {# مشارك}}",
@@ -728,6 +729,12 @@
       "micOn": "الميكروفون مفتوح",
       "audioBlocked": "المتصفح حظر صوت الغرفة. اضغط لسماع المشاركين.",
       "enableAudio": "تفعيل الصوت",
+      "cameraOn": "تشغيل الكاميرا",
+      "cameraOff": "إيقاف الكاميرا",
+      "shareScreen": "مشاركة الشاشة",
+      "stopShare": "إيقاف المشاركة",
+      "screenShare": "الشاشة",
+      "you": "أنت",
       "moderators": "المشرفون",
       "speakers": "المتحدثون",
       "listeners": "المستمعون",
@@ -796,7 +803,10 @@
         "TOKEN_FAILED": "تعذر إنشاء اتصال الصوت. تأكد أن مفتاح LiveKit والسر يخصّان نفس المشروع.",
         "CONNECTION_FAILED": "تعذر الاتصال بخادم LiveKit. تحقق من NEXT_PUBLIC_LIVEKIT_URL (مثل wss://your-project.livekit.cloud) ومن أن المفتاح والسر يطابقان هذا المشروع.",
         "INVALID": "تحقق من البيانات المدخلة.",
-        "BLOCKED": "لا يمكن إكمال الدعوة بسبب إعدادات الحظر."
+        "BLOCKED": "لا يمكن إكمال الدعوة بسبب إعدادات الحظر.",
+        "CAMERA_FAILED": "تعذر فتح الكاميرا.",
+        "SCREEN_SHARE_FAILED": "تعذر مشاركة الشاشة.",
+        "SCREEN_SHARE_UNSUPPORTED": "مشاركة الشاشة غير متاحة في هذا المتصفح."
       }
     }
   }

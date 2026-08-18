@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { canViewVoiceRoom, getVoiceRoomAuth } from "@/lib/voice/access";
-import { endAbandonedVoiceRooms } from "@/lib/voice/lifecycle";
 import { loadVoiceRoomState } from "@/lib/voice/queries";
 
 export async function GET(request: Request) {
@@ -19,7 +18,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "INVALID" }, { status: 400 });
   }
 
-  await endAbandonedVoiceRooms();
   const room = await getVoiceRoomAuth(roomId);
   if (!room) {
     return Response.json({ error: "NOT_FOUND" }, { status: 404 });
