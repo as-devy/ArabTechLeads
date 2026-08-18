@@ -533,7 +533,14 @@ function LiveRoomView({
 
 function VideoFeedCard({ feed, featured = false }: { feed: VoiceVideoFeed; featured?: boolean }) {
   const t = useTranslations("app.voice");
-  const session = useVoiceSession();
+  const { bindVideoElement } = useVoiceSession();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    bindVideoElement(feed.trackSid, videoRef.current);
+    return () => bindVideoElement(feed.trackSid, null);
+  }, [bindVideoElement, feed.trackSid]);
+
   return (
     <figure
       className={cn(
@@ -542,7 +549,7 @@ function VideoFeedCard({ feed, featured = false }: { feed: VoiceVideoFeed; featu
       )}
     >
       <video
-        ref={(element) => session.bindVideoElement(feed.trackSid, element)}
+        ref={videoRef}
         className={cn(
           "h-full w-full",
           feed.source === "camera" ? "object-cover" : "object-contain",

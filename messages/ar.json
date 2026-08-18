@@ -285,7 +285,9 @@
       "openSource": "مفتوح المصدر",
       "analytics": "التحليلات",
       "verification": "التحقق",
-      "voice": "غرف صوتية"
+      "voice": "غرف صوتية",
+      "menu": "القائمة",
+      "closeMenu": "إغلاق القائمة"
     },
     "searchPlaceholder": "ابحث عن مطورين، مشاريع، وظائف، مجتمعات...",
     "userMenu": {

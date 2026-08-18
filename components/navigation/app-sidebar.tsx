@@ -38,7 +38,7 @@ const bottom = [
   { href: "/app/saved", key: "saved" as const, icon: Bookmark },
 ];
 
-type Profile = {
+export type AppNavProfile = {
   username?: string | null;
   fullName?: string | null;
   avatarUrl?: string | null;
@@ -49,16 +49,19 @@ function NavLink({
   icon: Icon,
   label,
   pathname,
+  onNavigate,
 }: {
   href: string;
   icon: typeof Home;
   label: string;
   pathname: string;
+  onNavigate?: () => void;
 }) {
   const active = href === "/app" ? pathname === "/app" : pathname.startsWith(href);
   return (
     <Link
       href={href as "/app"}
+      onClick={onNavigate}
       className={cn(
         "inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
         active
@@ -72,89 +75,109 @@ function NavLink({
   );
 }
 
-export function AppSidebar({
+export function AppNav({
   profile,
-  roleName,
+  onNavigate,
 }: {
-  profile: Profile;
-  roleName?: string | null;
+  profile: AppNavProfile;
+  onNavigate?: () => void;
 }) {
   const t = useTranslations("app.nav");
   const pathname = usePathname();
 
   return (
+    <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
+      {top.map((item) => (
+        <NavLink
+          key={item.href}
+          href={item.href}
+          icon={item.icon}
+          label={t(item.key)}
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+      ))}
+      <OpportunitiesNav onNavigate={onNavigate} />
+      {bottom.map((item) => (
+        <NavLink
+          key={item.href}
+          href={item.href}
+          icon={item.icon}
+          label={t(item.key)}
+          pathname={pathname}
+          onNavigate={onNavigate}
+        />
+      ))}
+      <div className="my-3 h-px bg-border" />
+      <Link
+        href={
+          profile.username
+            ? (`/app/developers/${profile.username}` as never)
+            : "/app/settings"
+        }
+        onClick={onNavigate}
+        className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
+      >
+        <UserRound className="size-4" strokeWidth={1.8} />
+        {t("profile")}
+      </Link>
+      <Link
+        href="/app/notifications"
+        onClick={onNavigate}
+        className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
+      >
+        <Bell className="size-4" strokeWidth={1.8} />
+        {t("notifications")}
+      </Link>
+      <Link
+        href="/app/messages"
+        onClick={onNavigate}
+        className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
+      >
+        <MessageCircle className="size-4" strokeWidth={1.8} />
+        {t("messages")}
+      </Link>
+      <Link
+        href="/app/analytics"
+        onClick={onNavigate}
+        className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
+      >
+        <LineChart className="size-4" strokeWidth={1.8} />
+        {t("analytics")}
+      </Link>
+      <Link
+        href="/app/verification"
+        onClick={onNavigate}
+        className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
+      >
+        <ShieldCheck className="size-4" strokeWidth={1.8} />
+        {t("verification")}
+      </Link>
+      <Link
+        href="/app/settings"
+        onClick={onNavigate}
+        className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
+      >
+        <Settings className="size-4" strokeWidth={1.8} />
+        {t("settings")}
+      </Link>
+    </nav>
+  );
+}
+
+export function AppSidebar({
+  profile,
+  roleName,
+}: {
+  profile: AppNavProfile;
+  roleName?: string | null;
+}) {
+  return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-e border-border/80 bg-background px-3 py-4 lg:flex">
       <div className="px-2 pb-5">
         <BrandLogo href="/app" />
       </div>
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        {top.map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            icon={item.icon}
-            label={t(item.key)}
-            pathname={pathname}
-          />
-        ))}
-        <OpportunitiesNav />
-        {bottom.map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            icon={item.icon}
-            label={t(item.key)}
-            pathname={pathname}
-          />
-        ))}
-        <div className="my-3 h-px bg-border" />
-        <Link
-          href={
-            profile.username
-              ? (`/app/developers/${profile.username}` as never)
-              : "/app/settings"
-          }
-          className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
-        >
-          <UserRound className="size-4" strokeWidth={1.8} />
-          {t("profile")}
-        </Link>
-        <Link
-          href="/app/notifications"
-          className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
-        >
-          <Bell className="size-4" strokeWidth={1.8} />
-          {t("notifications")}
-        </Link>
-        <Link
-          href="/app/messages"
-          className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
-        >
-          <MessageCircle className="size-4" strokeWidth={1.8} />
-          {t("messages")}
-        </Link>
-        <Link
-          href="/app/analytics"
-          className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
-        >
-          <LineChart className="size-4" strokeWidth={1.8} />
-          {t("analytics")}
-        </Link>
-        <Link
-          href="/app/verification"
-          className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
-        >
-          <ShieldCheck className="size-4" strokeWidth={1.8} />
-          {t("verification")}
-        </Link>
-        <Link
-          href="/app/settings"
-          className="inline-flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-secondary hover:bg-accent-muted/50 hover:text-foreground"
-        >
-          <Settings className="size-4" strokeWidth={1.8} />
-          {t("settings")}
-        </Link>
-      </nav>
+      <AppNav profile={profile} />
       <UserMenu profile={profile} roleName={roleName} />
     </aside>
   );

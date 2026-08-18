@@ -17,9 +17,11 @@ type Profile = {
 export function UserMenu({
   profile,
   roleName,
+  onNavigate,
 }: {
   profile: Profile;
   roleName?: string | null;
+  onNavigate?: () => void;
 }) {
   const t = useTranslations("app.userMenu");
   const [open, setOpen] = useState(false);
@@ -82,14 +84,20 @@ export function UserMenu({
                 : "/app/settings"
             }
             className="block px-3 py-2.5 text-sm hover:bg-accent-muted"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              onNavigate?.();
+            }}
           >
             {t("viewProfile")}
           </Link>
           <Link
             href="/app/settings"
             className="block px-3 py-2.5 text-sm hover:bg-accent-muted"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              onNavigate?.();
+            }}
           >
             {t("settings")}
           </Link>

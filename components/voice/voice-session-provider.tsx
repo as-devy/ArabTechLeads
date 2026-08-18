@@ -94,6 +94,18 @@ async function fetchToken(roomId: string) {
   return data;
 }
 
+function videoFeedsUnchanged(prev: VoiceVideoFeed[], next: VoiceVideoFeed[]) {
+  if (prev.length !== next.length) return false;
+  return prev.every(
+    (feed, index) =>
+      feed.trackSid === next[index]?.trackSid &&
+      feed.identity === next[index]?.identity &&
+      feed.name === next[index]?.name &&
+      feed.source === next[index]?.source &&
+      feed.isLocal === next[index]?.isLocal,
+  );
+}
+
 function livekitConnectError(error: unknown): VoiceErrorCode {
   const status = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
   const message = error instanceof Error ? error.message : "";
@@ -111,11 +123,8 @@ function isMobileClient() {
   );
 }
 
-function playbackBoost() {
-  return isMobileClient() ? 2.2 : 1.25;
-}
-
 let playbackContext: AudioContext | null = null;
+const speechPluginsByTrack = new WeakMap<RemoteTrack, AudioNode[]>();
 
 function getPlaybackContext() {
   if (playbackContext) return playbackContext;
@@ -127,37 +136,83 @@ function getPlaybackContext() {
   return playbackContext;
 }
 
-function boostRemoteAudio(track: RemoteTrack) {
+function createSpeechClarityChain(ctx: AudioContext) {
+  const highpass = ctx.createBiquadFilter();
+  highpass.type = "highpass";
+  highpass.frequency.value = 85;
+  highpass.Q.value = 0.7;
+
+  const mud = ctx.createBiquadFilter();
+  mud.type = "peaking";
+  mud.frequency.value = 280;
+  mud.Q.value = 0.85;
+  mud.gain.value = -3;
+
+  const presence = ctx.createBiquadFilter();
+  presence.type = "peaking";
+  presence.frequency.value = 2700;
+  presence.Q.value = 1.05;
+  presence.gain.value = isMobileClient() ? 4.5 : 3.5;
+
+  const consonants = ctx.createBiquadFilter();
+  consonants.type = "peaking";
+  consonants.frequency.value = 5200;
+  consonants.Q.value = 0.9;
+  consonants.gain.value = isMobileClient() ? 3 : 2.2;
+
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.knee.value = 12;
+  compressor.ratio.value = 3;
+  compressor.attack.value = 0.004;
+  compressor.release.value = 0.16;
+
+  const makeup = ctx.createGain();
+  makeup.gain.value = isMobileClient() ? 1.45 : 1.15;
+
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -1.5;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.05;
+
+  return [highpass, mud, presence, consonants, compressor, makeup, limiter];
+}
+
+function enhanceRemoteSpeech(track: RemoteTrack) {
   if (track.kind !== "audio") return;
   if ("setVolume" in track && typeof track.setVolume === "function") {
     track.setVolume(1);
   }
   const ctx = getPlaybackContext();
   if (
-    ctx &&
-    "setWebAudioPlugins" in track &&
-    typeof track.setWebAudioPlugins === "function"
+    !ctx ||
+    !("setWebAudioPlugins" in track) ||
+    typeof track.setWebAudioPlugins !== "function"
   ) {
-    const gain = ctx.createGain();
-    gain.gain.value = playbackBoost();
-    track.setWebAudioPlugins([gain]);
+    return;
   }
+  let nodes = speechPluginsByTrack.get(track);
+  if (!nodes) {
+    nodes = createSpeechClarityChain(ctx);
+    speechPluginsByTrack.set(track, nodes);
+  }
+  track.setWebAudioPlugins(nodes);
 }
 
 function attachRemoteAudio(track: RemoteTrack) {
   if (track.kind !== "audio") return;
   if (track.attachedElements.length > 0) {
-    boostRemoteAudio(track);
+    enhanceRemoteSpeech(track);
     return;
   }
   const el = track.attach();
   el.autoplay = true;
-  el.volume = 1;
-  el.muted = false;
   el.setAttribute("playsinline", "true");
   el.setAttribute("aria-hidden", "true");
   document.body.appendChild(el);
-  boostRemoteAudio(track);
+  enhanceRemoteSpeech(track);
   void el.play().catch(() => undefined);
 }
 
@@ -309,7 +364,7 @@ export function VoiceSessionProvider({
         }
       }
       videoTracksRef.current = nextTracks;
-      setVideoFeeds(feeds);
+      setVideoFeeds((prev) => (videoFeedsUnchanged(prev, feeds) ? prev : feeds));
     };
 
     room.on("connectionStateChanged", (state) => {
@@ -376,7 +431,7 @@ export function VoiceSessionProvider({
       const { Room, AudioPresets, VideoPresets } = await import("livekit-client");
       const audioContext = getPlaybackContext();
       const room = new Room({
-        adaptiveStream: true,
+        adaptiveStream: false,
         dynacast: true,
         disconnectOnPageLeave: false,
         webAudioMix: audioContext ? { audioContext } : true,
@@ -386,14 +441,15 @@ export function VoiceSessionProvider({
           autoGainControl: true,
           channelCount: 1,
           voiceIsolation: true,
+          sampleRate: 48000,
         },
         videoCaptureDefaults: {
           facingMode: "user",
-          resolution: VideoPresets.h540.resolution,
+          resolution: VideoPresets.h720.resolution,
         },
         publishDefaults: {
-          audioPreset: AudioPresets.speech,
-          dtx: true,
+          audioPreset: AudioPresets.music,
+          dtx: false,
           red: true,
           forceStereo: false,
           simulcast: true,
@@ -546,8 +602,15 @@ export function VoiceSessionProvider({
   const bindVideoElement = useCallback((trackSid: string, element: HTMLVideoElement | null) => {
     const track = videoTracksRef.current.get(trackSid);
     const previous = videoElsRef.current.get(trackSid);
-    if (previous && track) {
-      track.detach(previous);
+    if (previous === element) {
+      if (element && track && !element.srcObject) {
+        track.attach(element);
+        void element.play().catch(() => undefined);
+      }
+      return;
+    }
+    if (previous) {
+      track?.detach(previous);
       videoElsRef.current.delete(trackSid);
     }
     if (!element || !track) return;

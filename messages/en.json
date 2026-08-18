@@ -284,7 +284,9 @@
       "openSource": "Open source",
       "analytics": "Analytics",
       "verification": "Verification",
-      "voice": "Voice Rooms"
+      "voice": "Voice Rooms",
+      "menu": "Menu",
+      "closeMenu": "Close menu"
     },
     "searchPlaceholder": "Search developers, projects, jobs, communities...",
     "userMenu": {

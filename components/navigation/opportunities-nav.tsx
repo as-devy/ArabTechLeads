@@ -15,7 +15,7 @@ const items = [
   { href: "/app/hackathons", key: "hackathons" as const },
 ];
 
-export function OpportunitiesNav() {
+export function OpportunitiesNav({ onNavigate }: { onNavigate?: () => void }) {
   const t = useTranslations("app.nav");
   const pathname = usePathname();
   const [open, setOpen] = useState(
@@ -52,6 +52,7 @@ export function OpportunitiesNav() {
             <li key={item.href}>
               <Link
                 href={item.href as never}
+                onClick={onNavigate}
                 className={cn(
                   "block rounded-md px-2 py-1.5 text-sm",
                   pathname === item.href ||

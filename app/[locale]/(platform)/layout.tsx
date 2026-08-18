@@ -60,6 +60,12 @@ export default async function PlatformLayout({ children, params }: Props) {
           name={profile?.fullName}
           avatarUrl={profile?.avatarUrl}
           unreadNotifications={unread}
+          profile={{
+            username: profile?.username,
+            fullName: profile?.fullName,
+            avatarUrl: profile?.avatarUrl,
+          }}
+          roleName={roleName}
         />
         <main className="flex-1">{children}</main>
       </div>
