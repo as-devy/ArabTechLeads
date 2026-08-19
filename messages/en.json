@@ -311,7 +311,13 @@
       "comments": "Comments",
       "commentPlaceholder": "Write a comment...",
       "send": "Send",
-      "language": "Language"
+      "language": "Language",
+      "tags": "Topics",
+      "forYou": "Recommended for you",
+      "more": "More",
+      "notInterested": "Not interested",
+      "hide": "Hide post",
+      "muteAuthor": "Mute author"
     },
     "explore": {
       "title": "Explore",

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import { VoiceRoomExperience } from "@/components/voice/voice-room-ui";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { canViewVoiceRoom, getVoiceRoomAuth } from "@/lib/voice/access";
 import { isLiveKitConfigured } from "@/lib/voice/config";
@@ -28,11 +29,14 @@ export default async function VoiceRoomPage({ params }: Props) {
   if (!state) notFound();
 
   return (
-    <VoiceRoomExperience
-      initial={state}
-      profileId={me.id}
-      livekitConfigured={isLiveKitConfigured()}
-      locale={locale}
-    />
+    <>
+      <RealtimeRefresher tables={["voice_rooms", "voice_room_members"]} />
+      <VoiceRoomExperience
+        initial={state}
+        profileId={me.id}
+        livekitConfigured={isLiveKitConfigured()}
+        locale={locale}
+      />
+    </>
   );
 }

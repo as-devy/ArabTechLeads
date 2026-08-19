@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CODE_LANGUAGES } from "@/lib/format";
 import { createPostAction } from "@/lib/actions/posts";

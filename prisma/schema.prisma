@@ -302,6 +302,8 @@ model Profile {
   mutes                UserMute[]
   analyticsEvents      AnalyticsEvent[]
   auditLogs            AdminAuditLog[]
+  postInteractions     PostInteraction[]
+  interestProfiles     UserInterestProfile[]
 
   @@index([username])
   @@index([roleId])
@@ -393,6 +395,7 @@ model Post {
   savedBy     SavedPost[]
   communityPosts CommunityPost[]
   notifications Notification[]
+  interactions  PostInteraction[]
 
   @@index([authorId, createdAt(sort: Desc)])
   @@index([communityId, createdAt(sort: Desc)])
@@ -406,6 +409,7 @@ model Tag {
   name      String
   createdAt DateTime  @default(now()) @map("created_at")
   posts     PostTag[]
+  interestProfiles UserInterestProfile[]
 
   @@map("tags")
 }
@@ -463,6 +467,60 @@ model SavedPost {
   @@id([postId, profileId])
   @@index([profileId, createdAt(sort: Desc)])
   @@map("saved_posts")
+}
+
+enum PostInteractionType {
+  IMPRESSION
+  VIEW
+  LIKE
+  COMMENT
+  SAVE
+  SHARE
+  HIDE
+  NOT_INTERESTED
+}
+
+enum InterestSource {
+  EXPLICIT
+  BEHAVIOR
+  COMMUNITY
+  PROJECT
+  FOLLOW
+  INTERACTION
+}
+
+model PostInteraction {
+  id        String               @id @default(uuid()) @db.Uuid
+  profileId String               @map("profile_id") @db.Uuid
+  postId    String               @map("post_id") @db.Uuid
+  type      PostInteractionType
+  position  Int?
+  feedVersion String             @default("v1") @map("feed_version")
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, type, createdAt(sort: Desc)])
+  @@index([postId, type])
+  @@index([profileId, postId, type, createdAt(sort: Desc)])
+  @@map("post_interactions")
+}
+
+model UserInterestProfile {
+  profileId String         @map("profile_id") @db.Uuid
+  tagId     String         @map("tag_id") @db.Uuid
+  weight    Float
+  source    InterestSource
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, tagId, source])
+  @@index([profileId, weight(sort: Desc)])
+  @@index([tagId])
+  @@map("user_interest_profiles")
 }
 
 model Follow {

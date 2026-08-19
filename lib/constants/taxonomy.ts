@@ -159,3 +159,16 @@ export function slugify(value: string) {
     .replace(/\s+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
 }
+
+export const FEED_TOPIC_TAGS = [
+  { slug: "performance", name: "Performance" },
+  { slug: "architecture", name: "Architecture" },
+  { slug: "frontend", name: "Frontend" },
+  { slug: "backend", name: "Backend" },
+  { slug: "databases", name: "Databases" },
+  { slug: "security", name: "Security" },
+  { slug: "testing", name: "Testing" },
+  { slug: "career", name: "Career" },
+  { slug: "api", name: "API" },
+  { slug: "system-design", name: "System Design" },
+] as const;

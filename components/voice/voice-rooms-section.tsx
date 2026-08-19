@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { VoiceRoomCard } from "@/components/voice/voice-room-card";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import type { VoiceRoomCardData } from "@/lib/voice/types";
@@ -16,6 +17,7 @@ export async function VoiceRoomsSection({
 
   return (
     <div className="mt-4 space-y-3">
+      <RealtimeRefresher tables={["voice_rooms", "voice_room_members"]} />
       {createHref ? (
         <Link href={createHref as never}>
           <Button size="sm">{t("create")}</Button>

@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useVoiceSession } from "@/components/voice/voice-session-provider";
+import { getRealtimeClient } from "@/lib/realtime/browser";
 import { reportEntityAction } from "@/lib/actions/stage5";
 import {
   endVoiceRoomAction,
@@ -288,6 +289,10 @@ function LiveRoomView({
   const [pending, start] = useTransition();
 
   useEffect(() => {
+    setState(initial);
+  }, [initial]);
+
+  useEffect(() => {
     let cancelled = false;
     const load = async () => {
       if (session.connection !== "connected" || session.roomId !== initial.id) return;
@@ -304,10 +309,32 @@ function LiveRoomView({
       }
     };
     void load();
-    const timer = window.setInterval(() => void load(), 2000);
+    const timer = window.setInterval(() => void load(), 8000);
+    const supabase = getRealtimeClient();
+    const channel = supabase?.channel(`voice-room-state:${initial.id}`);
+    if (channel) {
+      channel
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "voice_rooms", filter: `id=eq.${initial.id}` },
+          () => void load(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "voice_room_members",
+            filter: `room_id=eq.${initial.id}`,
+          },
+          () => void load(),
+        )
+        .subscribe();
+    }
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      if (supabase && channel) void supabase.removeChannel(channel);
     };
   }, [initial.id, session.connection, session.roomId, session.leave]);
 

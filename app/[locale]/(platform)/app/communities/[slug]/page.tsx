@@ -2,8 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { PostCard } from "@/components/posts/post-card";
 import { PostComposer } from "@/components/posts/post-composer";
+import { LiveFeed } from "@/components/posts/live-feed";
 import { DeveloperActions } from "@/components/developers/developer-actions";
 import { CommunityAvatar, CommunityBanner } from "@/components/communities/community-identity";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -11,6 +11,7 @@ import { toggleCommunityMembershipAction } from "@/lib/actions/social";
 import { inviteToCommunityAction } from "@/lib/actions/communities";
 import { resolveThemeColor } from "@/lib/communities/theme";
 import { prisma } from "@/lib/prisma";
+import { toFeedPost } from "@/lib/posts/feed";
 import { listVoiceRooms } from "@/lib/voice/queries";
 import { VoiceRoomsSection } from "@/components/voice/voice-rooms-section";
 import { Link } from "@/i18n/navigation";
@@ -124,13 +125,13 @@ export default async function CommunityPage({ params, searchParams }: Props) {
               accent={resolveThemeColor(community.slug, community.themeColor)}
             />
           ) : null}
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              currentUserId={me.id}
-              post={{ ...post, liked: post.likes.length > 0, saved: post.savedBy.length > 0 }}
-            />
-          ))}
+          <LiveFeed
+            currentUserId={me.id}
+            scope={{ kind: "community", communityId: community.id }}
+            posts={posts.map((post) =>
+              toFeedPost({ ...post, liked: post.likes.length > 0, saved: post.savedBy.length > 0 }),
+            )}
+          />
         </div>
       ) : null}
       {tab === "members" ? (

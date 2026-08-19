@@ -1,7 +1,8 @@
 import { getLocale, getTranslations, setRequestLocale } from "next-intl/server";
-import { PostCard } from "@/components/posts/post-card";
+import { LiveFeed } from "@/components/posts/live-feed";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { toFeedPost } from "@/lib/posts/feed";
 import { Link } from "@/i18n/navigation";
 import { redirect } from "next/navigation";
 
@@ -113,25 +114,25 @@ export default async function ExplorePage({ params }: Props) {
       <section className="mt-10">
         <h2 className="mb-3 text-sm font-semibold">{t("trendingCode")}</h2>
         <div className="space-y-3">
-          {codePosts.map((post) => (
-            <PostCard
-              key={post.id}
-              currentUserId={profile.id}
-              post={{ ...post, liked: post.likes.length > 0, saved: post.savedBy.length > 0 }}
-            />
-          ))}
+          <LiveFeed
+            currentUserId={profile.id}
+            scope={{ kind: "code" }}
+            posts={codePosts.map((post) =>
+              toFeedPost({ ...post, liked: post.likes.length > 0, saved: post.savedBy.length > 0 }),
+            )}
+          />
         </div>
       </section>
       <section className="mt-10">
         <h2 className="mb-3 text-sm font-semibold">{t("latest")}</h2>
         <div className="space-y-3">
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              currentUserId={profile.id}
-              post={{ ...post, liked: post.likes.length > 0, saved: post.savedBy.length > 0 }}
-            />
-          ))}
+          <LiveFeed
+            currentUserId={profile.id}
+            scope={{ kind: "all" }}
+            posts={posts.map((post) =>
+              toFeedPost({ ...post, liked: post.likes.length > 0, saved: post.savedBy.length > 0 }),
+            )}
+          />
         </div>
       </section>
     </div>

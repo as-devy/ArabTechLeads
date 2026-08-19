@@ -1,7 +1,7 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
-import { Bookmark, Heart, MessageCircle, Share2, Trash2 } from "lucide-react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
+import { Bookmark, Ellipsis, Heart, MessageCircle, Share2, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Avatar } from "@/components/ui/avatar";
 import { CodeBlock } from "@/components/code/code-block";
@@ -14,53 +14,29 @@ import {
   toggleLikeAction,
   toggleSaveAction,
 } from "@/lib/actions/posts";
+import { hideFeedPostAction, notInterestedAction, recordFeedInteractionAction } from "@/lib/actions/feed";
+import { muteEntityAction } from "@/lib/actions/stage5";
 import { communitySurfaceStyle, resolveThemeColor } from "@/lib/communities/theme";
 import { cn } from "@/lib/utils";
+import type { FeedPost } from "@/lib/posts/feed";
 
-export type FeedPost = {
-  id: string;
-  content: string;
-  code: string | null;
-  language: string | null;
-  createdAt: Date;
-  authorId: string;
-  author: {
-    username: string | null;
-    fullName: string | null;
-    avatarUrl: string | null;
-    role: { nameAr: string; nameEn: string } | null;
-  };
-  community?: {
-    slug: string;
-    nameAr: string;
-    nameEn: string;
-    themeColor: string;
-    imageUrl: string | null;
-  } | null;
-  tags: { tag: { name: string } }[];
-  _count: { likes: number; comments: number };
-  comments: {
-    id: string;
-    content: string;
-    createdAt: Date;
-    authorId: string;
-    author: { username: string | null; fullName: string | null; avatarUrl: string | null };
-  }[];
-  liked: boolean;
-  saved: boolean;
-};
+export type { FeedPost };
 
 export function PostCard({
   post,
   currentUserId,
+  onDismiss,
 }: {
   post: FeedPost;
   currentUserId: string;
+  onDismiss?: (postId: string) => void;
 }) {
   const t = useTranslations("app.feed");
   const locale = useLocale();
   const [showComments, setShowComments] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const commentFormRef = useRef<HTMLFormElement>(null);
   const [liked, setLiked] = useOptimistic(post.liked);
   const [likeCount, setLikeCount] = useOptimistic(post._count.likes);
   const [saved, setSaved] = useOptimistic(post.saved);
@@ -111,7 +87,55 @@ export function PostCard({
               >
                 <Trash2 className="size-4" />
               </button>
-            ) : null}
+            ) : (
+              <div className="relative">
+                <button
+                  type="button"
+                  className="rounded-md p-1 text-muted hover:text-foreground"
+                  aria-label={t("more")}
+                  onClick={() => setMenuOpen((v) => !v)}
+                >
+                  <Ellipsis className="size-4" />
+                </button>
+                {menuOpen ? (
+                  <div className="absolute end-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+                    <button
+                      type="button"
+                      className="block w-full px-3 py-2 text-start text-xs hover:bg-accent-muted"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDismiss?.(post.id);
+                        startTransition(() => void notInterestedAction(post.id));
+                      }}
+                    >
+                      {t("notInterested")}
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full px-3 py-2 text-start text-xs hover:bg-accent-muted"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDismiss?.(post.id);
+                        startTransition(() => void hideFeedPostAction(post.id));
+                      }}
+                    >
+                      {t("hide")}
+                    </button>
+                    <button
+                      type="button"
+                      className="block w-full px-3 py-2 text-start text-xs hover:bg-accent-muted"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDismiss?.(post.id);
+                        startTransition(() => void muteEntityAction("user", post.authorId));
+                      }}
+                    >
+                      {t("muteAuthor")}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
           <p className="mt-3 whitespace-pre-wrap text-sm leading-7">{post.content}</p>
           {post.code ? (
@@ -174,7 +198,10 @@ export function PostCard({
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent-muted"
-              onClick={() => navigator.clipboard.writeText(window.location.href)}
+              onClick={() => {
+                void navigator.clipboard.writeText(window.location.href);
+                startTransition(() => void recordFeedInteractionAction({ postId: post.id, type: "SHARE" }));
+              }}
             >
               <Share2 className="size-4" />
               {t("share")}
@@ -209,8 +236,12 @@ export function PostCard({
                 </div>
               ))}
               <form
+                ref={commentFormRef}
                 action={(formData) =>
-                  startTransition(() => addCommentAction(post.id, formData))
+                  startTransition(async () => {
+                    await addCommentAction(post.id, formData);
+                    commentFormRef.current?.reset();
+                  })
                 }
                 className="flex gap-2"
               >

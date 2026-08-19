@@ -312,7 +312,13 @@
       "comments": "التعليقات",
       "commentPlaceholder": "اكتب تعليقًا...",
       "send": "إرسال",
-      "language": "اللغة"
+      "language": "اللغة",
+      "tags": "المواضيع",
+      "forYou": "مقترح لك",
+      "more": "المزيد",
+      "notInterested": "غير مهتم",
+      "hide": "إخفاء المنشور",
+      "muteAuthor": "كتم الكاتب"
     },
     "explore": {
       "title": "استكشاف",

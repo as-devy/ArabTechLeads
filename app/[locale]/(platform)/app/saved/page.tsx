@@ -1,8 +1,9 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
-import { PostCard } from "@/components/posts/post-card";
+import { LiveFeed } from "@/components/posts/live-feed";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { toFeedPost } from "@/lib/posts/feed";
 import { Link } from "@/i18n/navigation";
 
 export const dynamic = "force-dynamic";
@@ -62,21 +63,18 @@ export default async function SavedPage({ params, searchParams }: Props) {
           </Link>
         ))}
       </div>
-      <div className="mt-6 space-y-3">
-        {posts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border px-4 py-12 text-center">
-            <p className="font-medium">{t("emptyTitle")}</p>
-            <p className="mt-2 text-sm text-secondary">{t("emptyBody")}</p>
-          </div>
-        ) : (
-          posts.map((post) => (
-            <PostCard
-              key={post.id}
-              currentUserId={me.id}
-              post={{ ...post, liked: post.likes.length > 0, saved: true }}
-            />
-          ))
-        )}
+      <div className="mt-6">
+        <LiveFeed
+          currentUserId={me.id}
+          scope={{ kind: "existing" }}
+          posts={posts.map((post) => toFeedPost({ ...post, liked: post.likes.length > 0, saved: true }))}
+          empty={
+            <div className="rounded-xl border border-dashed border-border px-4 py-12 text-center">
+              <p className="font-medium">{t("emptyTitle")}</p>
+              <p className="mt-2 text-sm text-secondary">{t("emptyBody")}</p>
+            </div>
+          }
+        />
       </div>
     </div>
   );

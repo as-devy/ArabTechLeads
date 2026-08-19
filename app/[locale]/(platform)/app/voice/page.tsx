@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { VoiceRoomCard } from "@/components/voice/voice-room-card";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { refreshVoiceMaintenance, respondVoiceInviteAction } from "@/lib/actions/voice";
 import { prismaModel } from "@/lib/prisma";
@@ -58,6 +59,7 @@ export default async function VoiceDashboardPage({ params }: Props) {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 lg:px-6">
+      <RealtimeRefresher tables={["voice_rooms", "voice_room_members", "voice_room_invites"]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{t("title")}</h1>

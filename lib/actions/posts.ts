@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { PostType } from "@/lib/generated/prisma/client";
 import { requireProfile } from "@/lib/auth/session";
+import { feedPostInclude, toFeedPost, type FeedPost } from "@/lib/posts/feed";
+import { attachPostTags, detectTagSlugs } from "@/lib/feed/tags";
+import { recordPostInteraction } from "@/lib/feed/interactions";
 import { prisma } from "@/lib/prisma";
+import { mutedIds } from "@/lib/trust/moderation";
 
 export async function createPostAction(formData: FormData) {
   const profile = await requireProfile();
@@ -39,6 +43,9 @@ export async function createPostAction(formData: FormData) {
     });
   }
 
+  const autoTags = detectTagSlugs(`${content} ${code}`, language);
+  await attachPostTags(post.id, [...autoTags, language].filter(Boolean));
+
   revalidatePath("/app");
   if (communityId) revalidatePath("/app/communities");
   return { ok: true };
@@ -70,6 +77,7 @@ export async function toggleLikeAction(postId: string) {
     await prisma.postLike.create({
       data: { postId, profileId: profile.id },
     });
+    void recordPostInteraction({ profileId: profile.id, postId, type: "LIKE" });
     if (post && post.authorId !== profile.id) {
       await prisma.notification.create({
         data: {
@@ -99,6 +107,7 @@ export async function toggleSaveAction(postId: string) {
     await prisma.savedPost.create({
       data: { postId, profileId: profile.id },
     });
+    void recordPostInteraction({ profileId: profile.id, postId, type: "SAVE" });
   }
 
   revalidatePath("/app");
@@ -118,6 +127,7 @@ export async function addCommentAction(postId: string, formData: FormData) {
   await prisma.comment.create({
     data: { postId, authorId: profile.id, content },
   });
+  void recordPostInteraction({ profileId: profile.id, postId, type: "COMMENT" });
 
   if (post && post.authorId !== profile.id) {
     await prisma.notification.create({
@@ -139,4 +149,16 @@ export async function deleteCommentAction(commentId: string) {
     where: { id: commentId, authorId: profile.id },
   });
   revalidatePath("/app");
+}
+
+export async function getFeedPostAction(postId: string): Promise<FeedPost | null> {
+  const profile = await requireProfile();
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: feedPostInclude(profile.id),
+  });
+  if (!post) return null;
+  const muted = await mutedIds(profile.id, "user");
+  if (muted.includes(post.authorId) && post.authorId !== profile.id) return null;
+  return toFeedPost(post);
 }
